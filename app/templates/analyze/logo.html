@@ -1,0 +1,32 @@
+{% extends "analyze/base.html" %}
+
+{% block analyze_content %}
+    <div class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <form method="post" action="{{ url_for('analyze.logo', project_id=project_id) }}" class="space-y-4">
+                {{ form.csrf_token }}
+                <div>
+                    <label for="gene" class="block text-sm font-medium text-slate-700">{{ form.gene.label }}</label>
+                    <div class="mt-1">
+                        {{ form.gene(class="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500") }}
+                    </div>
+                </div>
+                <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Generate Logo
+                </button>
+            </form>
+        </div>
+
+        {% if script and div %}
+            {{ resources|safe }}
+            {{ script|safe }}
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                {{ div[0]|safe }}
+            </div>
+        {% else %}
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <p class="text-slate-600">Please select a gene from the dropdown and submit the form to generate the plot.</p>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %} 

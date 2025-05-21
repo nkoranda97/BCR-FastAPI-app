@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis - {{ project.project_name }}{% endblock %}
+
+{% block nav %}
+<nav class="bg-white border-b border-slate-200 shadow-sm py-3">
+    <div class="container mx-auto px-4 flex justify-between items-center">
+        <a href="/" class="text-xl font-semibold tracking-tight text-slate-700">BCR Analysis</a>
+        <div class="space-x-4">
+            <a href="/" class="text-slate-600 hover:text-blue-600 transition">Home</a>
+            <a href="/logout" class="text-slate-600 hover:text-blue-600 transition">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-slate-200 min-h-screen">
+        <div class="p-4">
+            <ul class="space-y-2">
+                <li>
+                    <a href="{{ url_for('analyze.graphs', project_id=project_id) }}" 
+                       class="block px-4 py-2 rounded-lg {% if active_tab == 'graphs' %}bg-blue-50 text-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+                        <i class="fas fa-chart-bar mr-2"></i> Graphs
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('analyze.alignment', project_id=project_id) }}" 
+                       class="block px-4 py-2 rounded-lg {% if active_tab == 'alignments' %}bg-blue-50 text-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+                        <i class="fas fa-align-left mr-2"></i> Alignments
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('analyze.logo', project_id=project_id) }}" 
+                       class="block px-4 py-2 rounded-lg {% if active_tab == 'logo' %}bg-blue-50 text-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+                        <i class="fas fa-dna mr-2"></i> Logo
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8">
+        {% block analyze_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %} 

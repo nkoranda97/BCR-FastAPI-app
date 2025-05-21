@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BCR Analysis{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+    {% block nav %}
+    <nav class="bg-white border-b border-slate-200 shadow-sm py-3">
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <a href="/" class="text-xl font-semibold tracking-tight text-slate-700">BCR Analysis</a>
+            <div class="space-x-4">
+                <a href="/" class="text-slate-600 hover:text-blue-600 transition">Home</a>
+                <a href="/logout" class="text-slate-600 hover:text-blue-600 transition">Logout</a>
+            </div>
+        </div>
+    </nav>
+    {% endblock %}
+
+    <main class="flex-grow container mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center text-sm text-slate-500 py-6">
+        <p>nicholas.koranda@gmail.com</p>
+    </footer>
+</body>
+</html> 

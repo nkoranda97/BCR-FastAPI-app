@@ -1,0 +1,82 @@
+{% extends 'analyze/base.html' %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@jlab-contrib/msa@1.1.2/css/msa.css" />
+<script src="https://cdn.jsdelivr.net/npm/@jlab-contrib/msa@1.1.2/dist/msa.js"></script>
+{% endblock %}
+
+{% block analyze_content %}
+{% set hc_fasta = hc_fasta or '' %}
+{% set lc_fasta = lc_fasta or '' %}
+
+<div class="container mx-auto px-4 py-8">
+  <div class="bg-white rounded-lg shadow-lg p-6">
+    <h1 class="text-2xl font-bold mb-6">HC/LC Gene Pair Details</h1>
+    <div class="mb-6">
+      <span class="font-semibold">Project:</span> {{ project.project_name }}<br>
+      <span class="font-semibold">Heavy Chain (HC) Gene:</span> {{ hc_gene }}<br>
+      <span class="font-semibold">Light Chain (LC) Gene:</span> {{ lc_gene }}
+    </div>
+
+    <!-- Heavy Chain Alignment Card -->
+    <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
+      <h2 class="text-xl font-semibold mb-4">Heavy Chain Amino Acid Alignment</h2>
+      <div id="msa-hc" class="msa-viewer"></div>
+    </div>
+
+    <!-- Light Chain Alignment Card -->
+    <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
+      <h2 class="text-xl font-semibold mb-4">Light Chain Amino Acid Alignment</h2>
+      <div id="msa-lc" class="msa-viewer"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.msa-viewer {
+  min-height: 200px;
+  max-height: 400px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  margin-bottom: 1rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof msa === 'undefined') {
+    ['msa-hc','msa-lc'].forEach(id =>
+      document.getElementById(id).textContent = 'msa.js failed to load');
+    return;
+  }
+
+  const render = (fasta, elId) => {
+    const el = document.getElementById(elId);
+    if (!fasta || fasta.trim().length === 0) {
+      el.textContent = 'Not enough sequences for alignment.';
+      return;
+    }
+    try {
+      new msa({
+        el   : `#${elId}`,
+        seqs : msa.io.fasta.parse(fasta),
+        vis  : { conserv:true, overviewbox:true, seqlogo:true },
+        conf : { dropImport:true }
+      }).render();
+    } catch (e) {
+      el.textContent = `Error rendering alignment: ${e.message}`;
+    }
+  };
+
+  const hcFasta = `{{ hc_fasta|safe }}`;
+  const lcFasta = `{{ lc_fasta|safe }}`;
+
+  render(hcFasta, 'msa-hc');
+  render(lcFasta, 'msa-lc');
+});
+</script>
+{% endblock %}

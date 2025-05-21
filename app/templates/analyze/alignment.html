@@ -1,0 +1,9 @@
+{% extends "analyze/base.html" %}
+
+{% block analyze_content %}
+    {{ resources|safe }}
+    {{ script|safe }}
+    <div class="bg-white rounded-lg shadow-sm p-4">
+        {{ div[0]|safe }}
+    </div>
+{% endblock %} 

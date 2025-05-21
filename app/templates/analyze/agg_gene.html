@@ -1,0 +1,22 @@
+{% extends "analyze/base.html" %}
+{% block head %}
+    {{ super() }}
+    {{ resources|safe }}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-4">Gene Aggregation: {{ outer_gene }} vs {{ inner_gene }}</h1>
+        
+        {% if script and div %}
+            {{ script|safe }}
+            {{ div|safe }}
+        {% else %}
+            <div class="text-center text-gray-500">
+                No data available for the selected gene combination.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

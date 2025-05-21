@@ -1,0 +1,67 @@
+{% extends "analyze/base.html" %}
+
+{% block analyze_content %}
+    {{ resources|safe }}
+    {{ script|safe }}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                {{ div[0]|safe }}
+            </div>
+        </div>
+        <div class="lg:col-span-1">
+            <div id="dashboardPanel" class="bg-white rounded-lg shadow-sm p-4">
+                <!-- Dashboard content will be dynamically updated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for LC gene aggregation -->
+    <div id="lc-modal-overlay" class="fixed inset-0 bg-black opacity-40 hidden z-40"></div>
+    <div id="lc-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg relative">
+            <button id="close-lc-modal" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600">&times;</button>
+            <h3 class="text-xl font-semibold mb-4">LC Genes Paired with Selected HC Gene</h3>
+            <div id="lc-modal-content">
+                <!-- LC gene aggregation results will be inserted here -->
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script>
+    function openPanel(content) {
+        var panel = document.getElementById("dashboardPanel");
+        panel.innerHTML = content;
+        panel.classList.add("active");
+    }
+    
+    function closePanel() {
+        var panel = document.getElementById("dashboardPanel");
+        panel.classList.remove("active");
+    }
+
+    function hideAllLcModals() {
+        // Hide all modals and overlays with these IDs/classes
+        document.querySelectorAll('#lc-modal').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('#lc-modal-overlay').forEach(el => el.classList.add('hidden'));
+        // Optionally clear modal content
+        document.querySelectorAll('#lc-modal-content').forEach(el => el.innerHTML = '');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const closeLcModal = document.getElementById('close-lc-modal');
+        const lcModalOverlay = document.getElementById('lc-modal-overlay');
+        if (closeLcModal) closeLcModal.onclick = hideAllLcModals;
+        if (lcModalOverlay) lcModalOverlay.onclick = hideAllLcModals;
+        // Also close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                hideAllLcModals();
+            }
+        });
+    });
+</script>
+{% endblock %} 

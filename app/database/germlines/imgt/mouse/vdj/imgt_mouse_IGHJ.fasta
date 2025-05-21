@@ -1,0 +1,34 @@
+>V00762|IGHJ1*01|Mus_musculus_BALB/c|F|J-REGION|444..496|53 nt|2| | | | |53+0=53| | |
+ctactggtacttcgatgtctggggcgcagggaccacggtcaccgtctcctcag
+>V00770|IGHJ1*02|Mus_musculus|F|J-REGION|65..117|53 nt|2| | | | |53+0=53| | |
+ctactggtacttcgatgtctggggcgcagggaccacggtcaccgtttcctcag
+>X63164|IGHJ1*03|Mus_musculus_A/J|F|J-REGION|12..64|53 nt|2| | | | |53+0=53| | |
+ctactggtacttcgatgtctggggcacagggaccacggtcaccgtctcctcag
+>V00770|IGHJ2*01|Mus_musculus|F|J-REGION|383..430|48 nt|3| | | | |48+0=48| | |
+actactttgactactggggccaaggcaccactctcacagtctcctcag
+>S73821|IGHJ2*02|Mus_musculus|F|J-REGION|267..314|48 nt|3| | | | |48+0=48| | |
+actactttgactactggggccaaggcacctctctcacagtctcctcag
+>S77041|IGHJ2*03|Mus_musculus|F|J-REGION|1..46|46 nt|1| | | | |46+0=46| | |
+tactttgactactggggccaaggcaccagtctcacagtctcctcag
+>V00770|IGHJ3*01|Mus_musculus|F|J-REGION|766..813|48 nt|3| | | | |48+0=48| | |
+cctggtttgcttactggggccaagggactctggtcactgtctctgcag
+>S73821|IGHJ3*02|Mus_musculus|P|J-REGION|650..697|48 nt|3| | | | |48+0=48| | |
+cctggtttggttagtggggccaagggactctggtcactgtctctgcag
+>V00770|IGHJ4*01|Mus_musculus|F|J-REGION|1333..1386|54 nt|3| | | | |54+0=54| | |
+attactatgctatggactactggggtcaaggaacctcagtcaccgtctcctcag
+>BK063796|IGHJ1*01|Mustela putorius furo_JIRA1106|ORF|J-REGION|883587..883639|53 nt|2| | | | |53+0=53| | |
+cttctgggatttggtttactggggccaaggctccctggtcaccgtctcctcag
+>BK063796|IGHJ2*01|Mustela putorius furo_JIRA1106|F|J-REGION|883915..883968|54 nt|3| | | | |54+0=54| | |
+gccatgactacttggacgtctggggccagggcaccctggtgaccgtctcctcag
+>BK063796|IGHJ3*01|Mustela putorius furo_JIRA1106|P|J-REGION|884101..884148|48 nt|3| | | | |48+0=48| | |
+gcagggaccgttcctggggccaggggaccctggtccccatgtcctcag
+>BK063796|IGHJ4*01|Mustela putorius furo_JIRA1106|F|J-REGION|884390..884437|48 nt|3| | | | |48+0=48| | |
+actactttgagtactggggccaggggaccctggtcaccgtctcctcag
+>BK063796|IGHJ5*01|Mustela putorius furo_JIRA1106|F|J-REGION|884700..884750|51 nt|3| | | | |51+0=51| | |
+acaactggcttgactactggggccaggggaccctggtcaccgtgtcctcag
+>BK063796|IGHJ6*01|Mustela putorius furo_JIRA1106|F|J-REGION|885198..885251|54 nt|3| | | | |54+0=54| | |
+actactatgctatggactactggggccaggggaccctggtcaccgtctcctcag
+>BK063796|IGHJ7*01|Mustela putorius furo_JIRA1106|ORF|J-REGION|885514..885564|51 nt|3| | | | |51+0=51| | |
+acaactggcttgactactggggccaggggaccctggtcaccgtgtcctcag
+>BK063796|IGHJ8*01|Mustela putorius furo_JIRA1106|F|J-REGION|885999..886052|54 nt|3| | | | |54+0=54| | |
+actactatgctatgggctactggggccaggggacctcggtcaccgtgtcctcag
