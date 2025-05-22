@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
+import os
 
 class Settings(BaseSettings):
     # Application Settings
@@ -29,7 +30,6 @@ class Settings(BaseSettings):
     max_upload_size: int = 10485760  # 10MB in bytes
     
     # BLAST/IGBLAST Settings
-
     germlines_path: str = "app/database/germlines"
     igdata_path: str = "app/database/igblast"
     blastdb_path: str = "app/database/blast"
@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     log_file: str = "instance/app.log"
+
+    def setup_environment(self):
+        """Set up environment variables for BLAST and IGBLAST."""
+        os.environ["BLASTDB"] = self.blastdb_path
+        os.environ["GERMLINE"] = self.germlines_path
+        os.environ["IGDATA"] = self.igdata_path
 
     class Config:
         env_file = ".env"

@@ -57,11 +57,12 @@
                             <div class="flex text-sm text-gray-600">
                                 <label for="zip_folder" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                                     <span>Upload a file</span>
-                                    <input type="file" name="zip_folder" id="zip_folder" required class="sr-only">
+                                    <input type="file" name="zip_folder" id="zip_folder" required accept=".zip" class="sr-only">
                                 </label>
                                 <p class="pl-1">or drag and drop</p>
                             </div>
                             <p class="text-xs text-gray-500">ZIP file containing your sequencing data</p>
+                            <p id="file-name" class="text-sm text-gray-500 mt-2"></p>
                         </div>
                     </div>
                 </div>
@@ -139,6 +140,11 @@ function checkGEXAndSubmit() {
     const dataType = document.querySelector('input[name="data_uploaded"]:checked').value;
     const fileInput = document.getElementById('zip_folder');
     
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a file to upload.');
+        return false;
+    }
+    
     if (dataType === 'Both' && !fileInput.files[0].name.includes('_gex_')) {
         alert('Please upload a file containing GEX data for Both VDJ and GEX analysis.');
         return false;
@@ -148,9 +154,20 @@ function checkGEXAndSubmit() {
     return true;
 }
 
+// Update file name display
+const fileInput = document.getElementById('zip_folder');
+const fileNameDisplay = document.getElementById('file-name');
+
+fileInput.addEventListener('change', function(e) {
+    if (this.files && this.files[0]) {
+        fileNameDisplay.textContent = `Selected file: ${this.files[0].name}`;
+    } else {
+        fileNameDisplay.textContent = '';
+    }
+});
+
 // Drag and drop functionality
 const dropZone = document.querySelector('.border-dashed');
-const fileInput = document.getElementById('zip_folder');
 
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
     dropZone.addEventListener(eventName, preventDefaults, false);
@@ -182,7 +199,11 @@ dropZone.addEventListener('drop', handleDrop, false);
 function handleDrop(e) {
     const dt = e.dataTransfer;
     const files = dt.files;
-    fileInput.files = files;
+    
+    if (files.length > 0) {
+        fileInput.files = files;
+        fileNameDisplay.textContent = `Selected file: ${files[0].name}`;
+    }
 }
 </script>
 {% endblock %} 

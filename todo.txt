@@ -1,0 +1,7 @@
+-alignment order of aligntments
+-CDR H1 H2 H3 data annotated into alignment??
+-download selection as a fasta file
+-download consensus sequence
+-some translations might be off, alignments aren't aligning
+-alignment grouping to keep like sequences close together 
+-fix upload button
