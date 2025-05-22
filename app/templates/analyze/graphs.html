@@ -1,32 +1,64 @@
 {% extends "analyze/base.html" %}
 
 {% block analyze_content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="sm:flex sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Data Visualization</h1>
+            <p class="mt-2 text-sm text-gray-600">Interactive graphs and analysis of your BCR data</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
     {{ resources|safe }}
     {{ script|safe }}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Graph -->
         <div class="lg:col-span-2">
-            <div class="bg-white rounded-lg shadow-sm p-4">
-                {{ div[0]|safe }}
+            <div class="bg-white shadow rounded-lg overflow-hidden">
+                <div class="px-6 py-5 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Interactive Graph</h3>
+                    <p class="mt-1 text-sm text-gray-500">Click on data points to view detailed information</p>
+                </div>
+                <div class="p-6">
+                    {{ div[0]|safe }}
+                </div>
             </div>
         </div>
+
+        <!-- Dashboard Panel -->
         <div class="lg:col-span-1">
-            <div id="dashboardPanel" class="bg-white rounded-lg shadow-sm p-4">
-                <!-- Dashboard content will be dynamically updated -->
+            <div id="dashboardPanel" class="bg-white shadow rounded-lg overflow-hidden">
+                <div class="px-6 py-5 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Data Details</h3>
+                    <p class="mt-1 text-sm text-gray-500">Select a data point to view detailed information</p>
+                </div>
+                <div class="p-6">
+                    <div class="text-center py-12">
+                        <i class="fas fa-chart-bar text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-600">Click on a data point in the graph to view detailed information</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal for LC gene aggregation -->
+    <!-- LC Gene Modal -->
     <div id="lc-modal-overlay" class="fixed inset-0 bg-black opacity-40 hidden z-40"></div>
     <div id="lc-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg relative">
-            <button id="close-lc-modal" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600">&times;</button>
+            <button id="close-lc-modal" 
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors duration-200">
+                <i class="fas fa-times"></i>
+            </button>
             <h3 class="text-xl font-semibold mb-4">LC Genes Paired with Selected HC Gene</h3>
-            <div id="lc-modal-content">
+            <div id="lc-modal-content" class="max-h-[60vh] overflow-y-auto">
                 <!-- LC gene aggregation results will be inserted here -->
             </div>
         </div>
     </div>
+</div>
 {% endblock %}
 
 {% block head %}
@@ -34,20 +66,38 @@
 <script>
     function openPanel(content) {
         var panel = document.getElementById("dashboardPanel");
-        panel.innerHTML = content;
+        panel.innerHTML = `
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Data Details</h3>
+                <p class="mt-1 text-sm text-gray-500">Detailed information about the selected data point</p>
+            </div>
+            <div class="p-6">
+                ${content}
+            </div>
+        `;
         panel.classList.add("active");
     }
     
     function closePanel() {
         var panel = document.getElementById("dashboardPanel");
+        panel.innerHTML = `
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Data Details</h3>
+                <p class="mt-1 text-sm text-gray-500">Select a data point to view detailed information</p>
+            </div>
+            <div class="p-6">
+                <div class="text-center py-12">
+                    <i class="fas fa-chart-bar text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-600">Click on a data point in the graph to view detailed information</p>
+                </div>
+            </div>
+        `;
         panel.classList.remove("active");
     }
 
     function hideAllLcModals() {
-        // Hide all modals and overlays with these IDs/classes
         document.querySelectorAll('#lc-modal').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('#lc-modal-overlay').forEach(el => el.classList.add('hidden'));
-        // Optionally clear modal content
         document.querySelectorAll('#lc-modal-content').forEach(el => el.innerHTML = '');
     }
 
@@ -56,7 +106,7 @@
         const lcModalOverlay = document.getElementById('lc-modal-overlay');
         if (closeLcModal) closeLcModal.onclick = hideAllLcModals;
         if (lcModalOverlay) lcModalOverlay.onclick = hideAllLcModals;
-        // Also close modal on Escape key
+        
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 hideAllLcModals();

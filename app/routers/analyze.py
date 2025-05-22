@@ -395,5 +395,6 @@ async def hc_lc_detail(
             lc_match_matrix=lc_match_matrix,
             hc_fasta=hc_fasta,
             lc_fasta=lc_fasta,
+            active_tab="hc_lc_detail",
         ),
     )

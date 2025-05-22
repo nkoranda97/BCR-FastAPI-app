@@ -1,44 +1,48 @@
 from pydantic_settings import BaseSettings
-from pathlib import Path
-import os
-
+from functools import lru_cache
+from typing import Optional
 
 class Settings(BaseSettings):
-    # Application settings
-    SECRET_KEY: str = "your-secret-key-here"  # Default value for development
-    APP_NAME: str = "BCR Analysis"
-    DEBUG: bool = False
+    # Application Settings
+    app_env: str = "development"
+    debug: bool = True
+    secret_key: str
+    
+    # Authentication
+    login_username: str 
+    login_password: str
+    
+    # Server Settings
+    host: str = "0.0.0.0"
+    port: int = 8000
+    
+    # Database Settings
+    database_url: str = "sqlite:///instance/bcr.db"
+    db_username: str 
+    db_password: str
+    
+    # CORS Settings
+    allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
+    
+    # File Storage
+    upload_dir: str = "instance/uploads"
+    max_upload_size: int = 10485760  # 10MB in bytes
+    
+    # BLAST/IGBLAST Settings
 
-    # Database settings
-    DATABASE: str = str(Path("instance/bcr.db"))
-    db_username: str = ""
-    db_password: str = ""
-
-    # File upload settings
-    UPLOAD_FOLDER: str = str(Path("instance/uploads"))
-    MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
-
-    # Dandelion settings
-    GERMLINE_PATH: str = ""  # Will be set from environment
-    IGDATA_PATH: str = ""  # Will be set from environment
-    BLASTDB_PATH: str = ""  # Will be set from environment
+    germlines_path: str = "app/database/germlines"
+    igdata_path: str = "app/database/igblast"
+    blastdb_path: str = "app/database/blast"
+    
+    # Logging
+    log_level: str = "INFO"
+    log_file: str = "instance/app.log"
 
     class Config:
         env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "allow"  # Allow extra fields from environment
+        case_sensitive = False
+        extra = "allow"  # Allow extra fields from environment variables
 
-    def setup_environment(self):
-        """Setup environment variables for dandelion processing"""
-        # Create necessary directories
-        Path(self.UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
-        Path(self.DATABASE).parent.mkdir(parents=True, exist_ok=True)
-
-        # Set dandelion environment variables
-        os.environ["GERMLINE"] = self.GERMLINE_PATH
-        os.environ["IGDATA"] = self.IGDATA_PATH
-        os.environ["BLASTDB"] = self.BLASTDB_PATH
-
-
-# Create global settings instance
-settings = Settings()
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()

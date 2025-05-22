@@ -3,90 +3,134 @@
 {% block title %}Create Project{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
-    <div class="md:flex md:items-center md:justify-between">
-        <div class="min-w-0 flex-1">
-            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">Create Project</h2>
+<div class="max-w-3xl mx-auto">
+    <!-- Header Section -->
+    <div class="sm:flex sm:items-center sm:justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Create New Project</h1>
+            <p class="mt-2 text-sm text-gray-600">Upload your BCR sequencing data and start analyzing</p>
         </div>
     </div>
 
-    <form method="post" enctype="multipart/form-data" class="mt-8 space-y-6" onsubmit="return checkGEXAndSubmit()">
-        <div class="space-y-6 bg-white px-4 py-5 shadow sm:rounded-lg sm:p-6">
-            <div class="md:grid md:grid-cols-3 md:gap-6">
-                <div class="md:col-span-1">
-                    <h3 class="text-lg font-medium leading-6 text-gray-900">Project Information</h3>
-                    <p class="mt-1 text-sm text-gray-500">Enter the details for your new project.</p>
-                </div>
-                <div class="mt-5 md:col-span-2 md:mt-0">
-                    <div class="grid grid-cols-6 gap-6">
-                        <div class="col-span-6 sm:col-span-3">
-                            <label for="project_name" class="block text-sm font-medium text-gray-700">Project Name</label>
+    <form method="post" enctype="multipart/form-data" class="space-y-8" onsubmit="return checkGEXAndSubmit()">
+        <!-- Project Information Card -->
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Project Information</h3>
+                <p class="mt-1 text-sm text-gray-500">Enter the basic details for your new project</p>
+            </div>
+            <div class="px-6 py-5 space-y-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                        <label for="project_name" class="block text-sm font-medium text-gray-700">Project Name</label>
+                        <div class="mt-1">
                             <input type="text" name="project_name" id="project_name" required
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                placeholder="Enter project name">
                         </div>
+                    </div>
 
-                        <div class="col-span-6 sm:col-span-3">
-                            <label for="author_name" class="block text-sm font-medium text-gray-700">Author Name</label>
+                    <div>
+                        <label for="author_name" class="block text-sm font-medium text-gray-700">Author Name</label>
+                        <div class="mt-1">
                             <input type="text" name="author_name" id="author_name" required
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                        </div>
-
-                        <div class="col-span-6">
-                            <label for="zip_folder" class="block text-sm font-medium text-gray-700">Upload Files</label>
-                            <input type="file" name="zip_folder" id="zip_folder" required
-                                class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        </div>
-
-                        <div class="col-span-6">
-                            <fieldset>
-                                <legend class="text-sm font-medium text-gray-700">Data Type</legend>
-                                <div class="mt-2 space-y-4">
-                                    <div class="flex items-center">
-                                        <input type="radio" name="data_uploaded" value="VDJ" required
-                                            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <label class="ml-3 block text-sm font-medium text-gray-700">VDJ Only</label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input type="radio" name="data_uploaded" value="Both"
-                                            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <label class="ml-3 block text-sm font-medium text-gray-700">Both VDJ and GEX</label>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div>
-
-                        <div class="col-span-6">
-                            <fieldset>
-                                <legend class="text-sm font-medium text-gray-700">Species</legend>
-                                <div class="mt-2 space-y-4">
-                                    <div class="flex items-center">
-                                        <input type="radio" name="species" value="human" required
-                                            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <label class="ml-3 block text-sm font-medium text-gray-700">Human</label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input type="radio" name="species" value="mouse"
-                                            class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <label class="ml-3 block text-sm font-medium text-gray-700">Mouse</label>
-                                    </div>
-                                </div>
-                            </fieldset>
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                placeholder="Enter your name">
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Data Upload Card -->
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Data Upload</h3>
+                <p class="mt-1 text-sm text-gray-500">Upload your sequencing data files</p>
+            </div>
+            <div class="px-6 py-5 space-y-6">
+                <div>
+                    <label for="zip_folder" class="block text-sm font-medium text-gray-700">Upload Files</label>
+                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <div class="space-y-1 text-center">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400"></i>
+                            <div class="flex text-sm text-gray-600">
+                                <label for="zip_folder" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                    <span>Upload a file</span>
+                                    <input type="file" name="zip_folder" id="zip_folder" required class="sr-only">
+                                </label>
+                                <p class="pl-1">or drag and drop</p>
+                            </div>
+                            <p class="text-xs text-gray-500">ZIP file containing your sequencing data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Settings Card -->
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Analysis Settings</h3>
+                <p class="mt-1 text-sm text-gray-500">Configure your analysis parameters</p>
+            </div>
+            <div class="px-6 py-5 space-y-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                        <fieldset>
+                            <legend class="text-sm font-medium text-gray-700">Data Type</legend>
+                            <div class="mt-2 space-y-4">
+                                <div class="flex items-center">
+                                    <input type="radio" name="data_uploaded" value="VDJ" required
+                                        class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <label class="ml-3 block text-sm font-medium text-gray-700">VDJ Only</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="radio" name="data_uploaded" value="Both"
+                                        class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <label class="ml-3 block text-sm font-medium text-gray-700">Both VDJ and GEX</label>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <div>
+                        <fieldset>
+                            <legend class="text-sm font-medium text-gray-700">Species</legend>
+                            <div class="mt-2 space-y-4">
+                                <div class="flex items-center">
+                                    <input type="radio" name="species" value="human" required
+                                        class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <label class="ml-3 block text-sm font-medium text-gray-700">Human</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="radio" name="species" value="mouse"
+                                        class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <label class="ml-3 block text-sm font-medium text-gray-700">Mouse</label>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
         <div class="flex justify-end">
             <button type="submit"
-                class="ml-3 inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                Preprocess Data
+                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <i class="fas fa-play mr-2"></i>
+                Start Analysis
             </button>
         </div>
     </form>
 
-    <div id="loader" class="hidden fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
-        <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+    <!-- Loading Overlay -->
+    <div id="loader" class="hidden fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 flex flex-col items-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p class="text-gray-700">Processing your data...</p>
+        </div>
     </div>
 </div>
 
@@ -102,6 +146,43 @@ function checkGEXAndSubmit() {
     
     document.getElementById('loader').classList.remove('hidden');
     return true;
+}
+
+// Drag and drop functionality
+const dropZone = document.querySelector('.border-dashed');
+const fileInput = document.getElementById('zip_folder');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight(e) {
+    dropZone.classList.add('border-blue-500', 'bg-blue-50');
+}
+
+function unhighlight(e) {
+    dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+}
+
+dropZone.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    fileInput.files = files;
 }
 </script>
 {% endblock %} 

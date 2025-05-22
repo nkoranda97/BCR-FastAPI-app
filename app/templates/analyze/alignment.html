@@ -1,9 +1,26 @@
 {% extends "analyze/base.html" %}
 
 {% block analyze_content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="sm:flex sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Sequence Alignment</h1>
+            <p class="mt-2 text-sm text-gray-600">View and analyze sequence alignments</p>
+        </div>
+    </div>
+
+    <!-- Alignment Visualization -->
     {{ resources|safe }}
     {{ script|safe }}
-    <div class="bg-white rounded-lg shadow-sm p-4">
-        {{ div[0]|safe }}
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Alignment View</h3>
+            <p class="mt-1 text-sm text-gray-500">Interactive visualization of sequence alignments</p>
+        </div>
+        <div class="p-6">
+            {{ div[0]|safe }}
+        </div>
     </div>
+</div>
 {% endblock %} 

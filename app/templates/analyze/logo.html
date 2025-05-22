@@ -1,32 +1,67 @@
 {% extends "analyze/base.html" %}
 
 {% block analyze_content %}
-    <div class="space-y-6">
-        <div class="bg-white rounded-lg shadow-sm p-4">
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="sm:flex sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Sequence Logo</h1>
+            <p class="mt-2 text-sm text-gray-600">Generate sequence logos for your BCR genes</p>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Generate Logo</h3>
+            <p class="mt-1 text-sm text-gray-500">Select a gene to visualize its sequence conservation</p>
+        </div>
+        <div class="px-6 py-5">
             <form method="post" action="{{ url_for('analyze.logo', project_id=project_id) }}" class="space-y-4">
                 {{ form.csrf_token }}
                 <div>
-                    <label for="gene" class="block text-sm font-medium text-slate-700">{{ form.gene.label }}</label>
+                    <label for="gene" class="block text-sm font-medium text-gray-700">{{ form.gene.label }}</label>
                     <div class="mt-1">
-                        {{ form.gene(class="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500") }}
+                        {{ form.gene(class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500") }}
                     </div>
                 </div>
-                <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    Generate Logo
-                </button>
+                <div class="flex justify-end">
+                    <button type="submit" 
+                            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <i class="fas fa-dna mr-2"></i>
+                        Generate Logo
+                    </button>
+                </div>
             </form>
         </div>
+    </div>
 
-        {% if script and div %}
-            {{ resources|safe }}
-            {{ script|safe }}
-            <div class="bg-white rounded-lg shadow-sm p-4">
+    <!-- Results Card -->
+    {% if script and div %}
+        {{ resources|safe }}
+        {{ script|safe }}
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Sequence Logo</h3>
+                <p class="mt-1 text-sm text-gray-500">Visualization of sequence conservation</p>
+            </div>
+            <div class="p-6">
                 {{ div[0]|safe }}
             </div>
-        {% else %}
-            <div class="bg-white rounded-lg shadow-sm p-4">
-                <p class="text-slate-600">Please select a gene from the dropdown and submit the form to generate the plot.</p>
+        </div>
+    {% else %}
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">No Logo Generated</h3>
+                <p class="mt-1 text-sm text-gray-500">Select a gene from the dropdown above to generate a sequence logo</p>
             </div>
-        {% endif %}
-    </div>
+            <div class="px-6 py-5">
+                <div class="text-center py-12">
+                    <i class="fas fa-dna text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-600">Please select a gene and click "Generate Logo" to visualize sequence conservation</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
 {% endblock %} 
