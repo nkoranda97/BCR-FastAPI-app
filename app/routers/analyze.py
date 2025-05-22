@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -247,9 +247,9 @@ async def lc_aggregation(
     return JSONResponse(content={"lc_genes": result})
 
 
-def alignment_to_fasta(seqs):
-    # seqs: list of strings
-    return "\n".join([f">Seq{i + 1}\n{seq}" for i, seq in enumerate(seqs)])
+def alignment_to_fasta(seqs, label_map):
+    # seqs: list of (orig_id, sequence) tuples; label_map: dict orig_id -> user label
+    return "\n".join([f">{label_map[orig_id]}\n{seq}" for orig_id, seq in seqs])
 
 
 @router.get(
@@ -312,37 +312,26 @@ async def hc_lc_detail(
     )
 
     # Get sequences for alignment, filtering out empty/None
-    hc_seqs = [
-        row["IGH"]
-        for row in hc_table
-        if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()
-    ]
-    lc_seqs = [
-        row[lc_col]
-        for row in lc_table
-        if lc_col
-        and row.get(lc_col)
-        and isinstance(row[lc_col], str)
-        and row[lc_col].strip()
-    ]
+    hc_ids = [row["sequence_id"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
+    hc_seqs = [row["IGH"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
+    lc_ids = [row["sequence_id"] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
+    lc_seqs = [row[lc_col] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
 
-    print(f"[DEBUG] HC sequences length: {len(hc_seqs)}")
-    print(f"[DEBUG] LC sequences length: {len(lc_seqs)}")
+    # User-friendly labels
+    hc_label_map = {orig_id: f"HC-{i+1}" for i, orig_id in enumerate(hc_ids)}
+    lc_label_map = {orig_id: f"LC-{i+1}" for i, orig_id in enumerate(lc_ids)}
 
     # Compute alignments or use original sequences if too few
     hc_alignment, hc_consensus, hc_match_matrix = compute_alignment_and_consensus(
-        hc_seqs
+        hc_seqs, hc_ids
     )
     lc_alignment, lc_consensus, lc_match_matrix = compute_alignment_and_consensus(
-        lc_seqs
+        lc_seqs, lc_ids
     )
 
-    print(f"[DEBUG] HC alignment length: {len(hc_alignment)}")
-    print(f"[DEBUG] LC alignment length: {len(lc_alignment)}")
-
-    # Convert alignments to FASTA for msa.js
-    hc_fasta = alignment_to_fasta(hc_alignment)
-    lc_fasta = alignment_to_fasta(lc_alignment)
+    # Convert alignments to FASTA for msa.js using user-friendly labels
+    hc_fasta = alignment_to_fasta(hc_alignment, hc_label_map)
+    lc_fasta = alignment_to_fasta(lc_alignment, lc_label_map)
 
     print(f"[DEBUG] HC FASTA length: {len(hc_fasta)}")
     print(f"[DEBUG] LC FASTA length: {len(lc_fasta)}")
@@ -365,6 +354,8 @@ async def hc_lc_detail(
             lc_match_matrix=lc_match_matrix,
             hc_fasta=hc_fasta,
             lc_fasta=lc_fasta,
+            hc_label_map=hc_label_map,
+            lc_label_map=lc_label_map,
             active_tab="hc_lc_detail",
         ),
     )
@@ -392,4 +383,53 @@ async def gene_explorer(
             v_genes=v_genes,
             active_tab="gene_explorer",
         ),
+    )
+
+
+@router.get(
+    "/download_fasta/{project_id}/{hc_gene}/{lc_gene}/{chain_type}",
+    response_class=Response,
+    name="analyze.download_fasta",
+)
+async def download_fasta(
+    project_id: int,
+    hc_gene: str,
+    lc_gene: str,
+    chain_type: str,
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
+    """Download FASTA sequences for HC/LC gene pair."""
+    vdj, _ = project_data
+    merged = merge_data(vdj)
+
+    # Filter rows for this HC / LC pair
+    filtered = merged[
+        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+    ].copy()
+
+    # Translate sequences
+    for col in ("IGH", "IGK", "IGL"):
+        filtered[col] = filtered[col].apply(best_translation)
+
+    # Get sequences based on chain type
+    if chain_type == "hc":
+        sequences = filtered[filtered["locus_VDJ"] == "IGH"]["IGH"].dropna().tolist()
+        filename = f"HC_{hc_gene}_{lc_gene}.fasta"
+    else:  # lc
+        if lc_gene.startswith("IGK"):
+            sequences = filtered["IGK"].dropna().tolist()
+        else:
+            sequences = filtered["IGL"].dropna().tolist()
+        filename = f"LC_{hc_gene}_{lc_gene}.fasta"
+
+    # Convert to FASTA format
+    fasta_content = alignment_to_fasta(sequences)
+
+    return Response(
+        content=fasta_content,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
     )

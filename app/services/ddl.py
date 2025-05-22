@@ -14,6 +14,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio import pairwise2
 from Bio.Seq import Seq
 from Bio.Data.CodonTable import TranslationError
+from scipy.spatial.distance import pdist, squareform
+from scipy.cluster.hierarchy import linkage, leaves_list
+import numpy as np
 
 from app.core.config import get_settings
 
@@ -356,33 +359,46 @@ def lazy_classifier(gene: str) -> Optional[str]:
     return None
 
 
-def compute_alignment_and_consensus(seqs):
+def compute_alignment_and_consensus(seqs, ids=None):
     """
     Aligns sequences and computes consensus. Returns:
-    - alignment: list of aligned sequence strings
+    - alignment: list of (ID, aligned sequence) tuples (now clustered by similarity)
     - consensus: consensus string
     - match_matrix: list of bools (True if consensus, False if mismatch)
     """
     # Remove empty or None
-    seqs = [s for s in seqs if s]
+    if ids is None:
+        ids = [str(i+1) for i in range(len(seqs))]
+    filtered = [(i, s) for i, s in zip(ids, seqs) if s]
+    if not filtered:
+        return [], '', []
+    ids, seqs = zip(*filtered)
     if len(seqs) < 2:
-        return seqs, seqs[0] if seqs else "", []
+        return list(zip(ids, seqs)), seqs[0] if seqs else '', []
     # Convert to SeqRecord
     records = [SeqRecord(Seq(seq), id=str(i)) for i, seq in enumerate(seqs)]
-    # For demo, align by padding to max length (real MSA would use Clustal/MAFFT)
     max_len = max(len(r.seq) for r in records)
     for r in records:
         r.seq = Seq(str(r.seq).ljust(max_len, "-"))
     alignment = MultipleSeqAlignment(records)
     summary_align = AlignInfo.SummaryInfo(alignment)
     consensus = str(summary_align.dumb_consensus())
-    # Build match matrix
     align_strs = [str(r.seq) for r in alignment]
     match_matrix = []
     for i, c in enumerate(consensus):
         col = [seq[i] for seq in align_strs]
         match_matrix.append([base == c for base in col])
-    return align_strs, consensus, match_matrix
+    # --- CLUSTERING: reorder align_strs and ids by similarity ---
+    if len(align_strs) > 1:
+        arr = np.array([list(s) for s in align_strs])
+        def hamming(a, b):
+            return np.sum(a != b)
+        dist_vec = pdist(arr, lambda u, v: hamming(u, v) / max_len)
+        linkage_matrix = linkage(dist_vec, method='average')
+        order = leaves_list(linkage_matrix)
+        align_strs = [align_strs[i] for i in order]
+        ids = [ids[i] for i in order]
+    return list(zip(ids, align_strs)), consensus, match_matrix
 
 
 def best_translation(nt) -> str:

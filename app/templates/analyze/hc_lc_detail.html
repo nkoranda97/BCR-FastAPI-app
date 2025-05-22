@@ -22,61 +22,79 @@
 
     <!-- Heavy Chain Alignment Card -->
     <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
-      <h2 class="text-xl font-semibold mb-4">Heavy Chain Amino Acid Alignment</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Heavy Chain Amino Acid Alignment</h2>
+        <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='hc') }}"
+           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+          Download HC FASTA
+        </a>
+      </div>
       <div id="msa-hc" class="msa-viewer"></div>
     </div>
 
     <!-- Light Chain Alignment Card -->
     <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
-      <h2 class="text-xl font-semibold mb-4">Light Chain Amino Acid Alignment</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Light Chain Amino Acid Alignment</h2>
+        <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='lc') }}"
+           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+          Download LC FASTA
+        </a>
+      </div>
       <div id="msa-lc" class="msa-viewer"></div>
     </div>
   </div>
 </div>
 
 <style>
-.msa-viewer {
-  min-height: 200px;
-  max-height: 400px;
-  overflow: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  background: #fff;
-  margin-bottom: 1rem;
+/* Existing rules stay; add these just below them */
+.msa-view{
+  --msa-font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --msa-row-height : 22px;
+  --msa-bg         : #f8fafc;   /* slate-50 */
+  --msa-border     : 1px solid #e2e8f0;
+  --msa-highlight-bg:#c7d2fe;   /* indigo-200 */
+  --msa-cons-plot-height:60px;
 }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof msa === 'undefined') {
-    ['msa-hc','msa-lc'].forEach(id =>
-      document.getElementById(id).textContent = 'msa.js failed to load');
-    return;
-  }
-
-  const render = (fasta, elId) => {
-    const el = document.getElementById(elId);
-    if (!fasta || fasta.trim().length === 0) {
-      el.textContent = 'Not enough sequences for alignment.';
-      return;
-    }
-    try {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof msa === 'undefined') return;
+  
+    const render = (fasta, elId) => {
+      const el = document.getElementById(elId);
+      if (!fasta || fasta.trim().length === 0) {
+        el.textContent = 'Not enough sequences for alignment.'; return;
+      }
+  
       new msa({
         el   : `#${elId}`,
         seqs : msa.io.fasta.parse(fasta),
-        vis  : { conserv:true, overviewbox:true, seqlogo:true },
-        conf : { dropImport:true }
+  
+        /* ——————————————————————  HERE  ————————————————————— */
+        vis  : {
+          seqlogo     : true,
+          overviewbox : true,
+          conserv     : true,
+  
+          /* turn off the numeric ID column */
+          labelId     : false,   // hides the “ID” column
+          labels      : true,    // keep the name column
+          labelName   : true
+        },
+        conf : {
+          dropImport  : true,
+          algorithm   : 'upgma',
+          tree        : true,
+          order       : 'tree'
+        }
+        /* ———————————————————————————————————————————————— */
       }).render();
-    } catch (e) {
-      el.textContent = `Error rendering alignment: ${e.message}`;
-    }
-  };
-
-  const hcFasta = `{{ hc_fasta|safe }}`;
-  const lcFasta = `{{ lc_fasta|safe }}`;
-
-  render(hcFasta, 'msa-hc');
-  render(lcFasta, 'msa-lc');
-});
-</script>
+    };
+  
+    render(`{{ hc_fasta|safe }}`, 'msa-hc');
+    render(`{{ lc_fasta|safe }}`, 'msa-lc');
+  });
+  </script>
 {% endblock %}
