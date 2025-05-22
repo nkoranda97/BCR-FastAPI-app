@@ -42,58 +42,28 @@ async def graphs(
     vdj, adata = project_data
     df = vdj.metadata
 
-    # Create bar charts
-    p1_1 = plot.bar(df, x="v_call_VDJ", project_id=project_id)
-    p1_2 = plot.bar(df, x="c_call_VDJ", project_id=project_id)
-    p1_3 = plot.bar(df, x="j_call_VDJ", project_id=project_id)
-    p1_4 = plot.bar(df, x="isotype", project_id=project_id)
+    # Prepare data for Chart.js
+    def prepare_chart_data(column):
+        counts = df[column].value_counts()
+        return {
+            'labels': counts.index.tolist(),
+            'values': counts.values.tolist()
+        }
 
-    p1 = Tabs(
-        tabs=[
-            TabPanel(child=p1_1, title="v_call_VDJ"),
-            TabPanel(child=p1_2, title="c_call_VDJ"),
-            TabPanel(child=p1_3, title="j_call_VDJ"),
-            TabPanel(child=p1_4, title="isotype"),
-        ]
-    )
-
-    # Create pie charts
-    p2_1 = plot.pie(df, x="v_call_VDJ", project_id=project_id)
-    p2_2 = plot.pie(df, x="c_call_VDJ", project_id=project_id)
-    p2_3 = plot.pie(df, x="j_call_VDJ", project_id=project_id)
-    p2_4 = plot.pie(df, x="isotype", project_id=project_id)
-
-    p2 = Tabs(
-        tabs=[
-            TabPanel(child=p2_1, title="v_call_VDJ"),
-            TabPanel(child=p2_2, title="c_call_VDJ"),
-            TabPanel(child=p2_3, title="j_call_VDJ"),
-            TabPanel(child=p2_4, title="isotype"),
-        ]
-    )
-
-    # Create data table
-    p3 = plot.table(df)
-
-    # Combine all plots
-    p1p2p3 = Tabs(
-        tabs=[
-            TabPanel(child=p1, title="Bar Graph"),
-            TabPanel(child=p2, title="Pie Graph"),
-            TabPanel(child=p3, title="Data Table"),
-        ]
-    )
-
-    script, div = components([p1p2p3])
-
+    chart_data = {
+        'v_call': prepare_chart_data('v_call_VDJ'),
+        'c_call': prepare_chart_data('c_call_VDJ'),
+        'j_call': prepare_chart_data('j_call_VDJ'),
+        'isotype': prepare_chart_data('isotype')
+    }
+    print(f"Debug chart_data: {chart_data}")
     return templates.TemplateResponse(
         "analyze/graphs.html",
         get_template_context(
             request=request,
             project=project,
             project_id=project_id,
-            script=script,
-            div=div,
+            chart_data=chart_data,
             active_tab="graphs",
         ),
     )
@@ -396,5 +366,30 @@ async def hc_lc_detail(
             hc_fasta=hc_fasta,
             lc_fasta=lc_fasta,
             active_tab="hc_lc_detail",
+        ),
+    )
+
+
+@router.get("/gene_explorer/{project_id}", response_class=HTMLResponse, name="analyze.gene_explorer")
+async def gene_explorer(
+    request: Request,
+    project_id: int,
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
+    """Gene Explorer: List V genes and their counts."""
+    vdj, adata = project_data
+    df = vdj.metadata
+    v_counts = df['v_call_VDJ'].value_counts().reset_index()
+    v_counts.columns = ['gene', 'count']
+    v_genes = v_counts.to_dict(orient='records')
+    return templates.TemplateResponse(
+        "analyze/gene_explorer.html",
+        get_template_context(
+            request=request,
+            project=project,
+            project_id=project_id,
+            v_genes=v_genes,
+            active_tab="gene_explorer",
         ),
     )

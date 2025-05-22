@@ -1,0 +1,71 @@
+{% extends "analyze/base.html" %}
+
+{% block analyze_content %}
+<div class="space-y-6">
+    <div class="sm:flex sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Gene Explorer</h1>
+            <p class="mt-2 text-sm text-gray-600">Browse V genes, see associated LC genes, and view alignments.</p>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for gene in v_genes %}
+        <div class="bg-white shadow rounded-lg overflow-hidden hover:shadow-lg transition cursor-pointer gene-item" data-gene="{{ gene.gene }}">
+            <div class="px-6 py-5 flex items-center justify-between">
+                <span class="font-semibold text-blue-700">{{ gene.gene }}</span>
+                <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{{ gene.count }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <!-- Floating LC gene card overlay -->
+    <div id="lc-genes-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+        <div id="lc-genes-card" class="bg-white shadow-2xl rounded-lg p-8 max-w-lg w-full relative">
+            <button id="close-lc-genes" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <div id="lc-genes-panel"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.getElementById('lc-genes-overlay');
+    const card = document.getElementById('lc-genes-card');
+    const panel = document.getElementById('lc-genes-panel');
+    const closeBtn = document.getElementById('close-lc-genes');
+
+    document.querySelectorAll('.gene-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            const gene = this.getAttribute('data-gene');
+            panel.innerHTML = '<div class="text-gray-500">Loading associated LC genes...</div>';
+            overlay.classList.remove('hidden');
+            fetch(`/analyze/lc_aggregation/{{ project_id }}/${encodeURIComponent(gene)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.lc_genes && data.lc_genes.length > 0) {
+                        let html = `<h2 class='text-xl font-semibold mb-4'>LC Genes for <span class='text-blue-700'>${gene}</span></h2><ul class='divide-y'>`;
+                        data.lc_genes.forEach(row => {
+                            html += `<li class='py-2 flex items-center justify-between'><span class='font-mono text-blue-800'>${row.gene}</span><span class='text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded'>${row.count}</span><a href='/analyze/hc_lc_detail/{{ project_id }}/${encodeURIComponent(gene)}/${encodeURIComponent(row.gene)}' class='ml-4 text-blue-600 hover:underline'>View Alignment</a></li>`;
+                        });
+                        html += '</ul>';
+                        panel.innerHTML = html;
+                    } else {
+                        panel.innerHTML = `<div class='text-gray-500'>No LC genes found for <span class='font-mono'>${gene}</span>.</div>`;
+                    }
+                });
+        });
+    });
+    // Close overlay on button click or clicking outside the card
+    closeBtn.addEventListener('click', function() {
+        overlay.classList.add('hidden');
+    });
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            overlay.classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %} 
