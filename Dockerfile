@@ -41,6 +41,9 @@ ENV PATH="/opt/blast/bin:/opt/igblast/bin:/usr/local/bin:${PATH}"
 # Install uv
 RUN pip install uv
 
+# Install MUSCLE (added as a separate step for better Docker caching)
+RUN apt-get update && apt-get install -y muscle && rm -rf /var/lib/apt/lists/*
+
 # Copy pyproject.toml first to leverage Docker cache
 COPY pyproject.toml .
 RUN uv sync

@@ -2,99 +2,81 @@
 
 {% block head %}
 {{ super() }}
-<link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@jlab-contrib/msa@1.1.2/css/msa.css" />
-<script src="https://cdn.jsdelivr.net/npm/@jlab-contrib/msa@1.1.2/dist/msa.js"></script>
 {% endblock %}
 
 {% block analyze_content %}
 {% set hc_fasta = hc_fasta or '' %}
 {% set lc_fasta = lc_fasta or '' %}
 
-<div class="container mx-auto px-4 py-8">
-  <div class="bg-white rounded-lg shadow-lg p-6">
-    <h1 class="text-2xl font-bold mb-6">HC/LC Gene Pair Details</h1>
-    <div class="mb-6">
+<!-- =====================================================================
+     Paired Alignment Viewer page – cards now constrain width & scroll     
+     ===================================================================== -->
+<div class="container mx-auto max-w-screen-xl px-6 py-8 space-y-10">
+  <div class="bg-white rounded-lg shadow-lg p-6 space-y-10">
+    <!-- --------------------------------------------------------------- -->
+    <!-- Header / project meta                                           -->
+    <!-- --------------------------------------------------------------- -->
+    <h1 class="text-2xl font-bold">HC/LC Gene Pair Details</h1>
+    <div class="text-sm leading-6">
+      {% if project %}
       <span class="font-semibold">Project:</span> {{ project.project_name }}<br>
+      {% endif %}
       <span class="font-semibold">Heavy Chain (HC) Gene:</span> {{ hc_gene }}<br>
       <span class="font-semibold">Light Chain (LC) Gene:</span> {{ lc_gene }}
     </div>
 
-    <!-- Heavy Chain Alignment Card -->
-    <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-semibold">Heavy Chain Amino Acid Alignment</h2>
+    <!-- --------------------------------------------------------------- -->
+    <!-- Heavy‑chain alignment card                                      -->
+    <!-- --------------------------------------------------------------- -->
+    <div class="rounded-lg shadow border border-slate-200 bg-white p-6 space-y-4 overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Heavy Chain Amino-acid Alignment</h2>
+        {% if hc_json and hc_json|length > 0 %}
         <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='hc') }}"
-           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
+           aria-label="Download Heavy-chain FASTA file">
           Download HC FASTA
         </a>
+        {% endif %}
       </div>
-      <div id="msa-hc" class="msa-viewer"></div>
+
+      {% if hc_json and hc_json|length > 0 %}
+      <div class="overflow-x-auto w-full border border-slate-200 rounded">
+        <div id="msa-hc" data-seqs='{{ hc_json|tojson|safe }}'></div>
+      </div>
+      {% else %}
+      <p class="text-gray-500">No Heavy-chain alignment data available.</p>
+      {% endif %}
     </div>
 
-    <!-- Light Chain Alignment Card -->
-    <div class="mb-10 p-6 bg-gray-50 rounded-lg shadow border border-gray-200">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-semibold">Light Chain Amino Acid Alignment</h2>
+    <!-- --------------------------------------------------------------- -->
+    <!-- Light‑chain alignment card                                      -->
+    <!-- --------------------------------------------------------------- -->
+    <div class="rounded-lg shadow border border-slate-200 bg-white p-6 space-y-4 overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Light Chain Amino-acid Alignment</h2>
+        {% if lc_json and lc_json|length > 0 %}
         <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='lc') }}"
-           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
+           aria-label="Download Light-chain FASTA file">
           Download LC FASTA
         </a>
+        {% endif %}
       </div>
-      <div id="msa-lc" class="msa-viewer"></div>
+
+      {% if lc_json and lc_json|length > 0 %}
+      <div class="overflow-x-auto w-full border border-slate-200 rounded">
+        <div id="msa-lc" data-seqs='{{ lc_json|tojson|safe }}'></div>
+      </div>
+      {% else %}
+      <p class="text-gray-500">No Light-chain alignment data available.</p>
+      {% endif %}
     </div>
   </div>
 </div>
 
-<style>
-/* Existing rules stay; add these just below them */
-.msa-view{
-  --msa-font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --msa-row-height : 22px;
-  --msa-bg         : #f8fafc;   /* slate-50 */
-  --msa-border     : 1px solid #e2e8f0;
-  --msa-highlight-bg:#c7d2fe;   /* indigo-200 */
-  --msa-cons-plot-height:60px;
-}
-</style>
-
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    if (typeof msa === 'undefined') return;
-  
-    const render = (fasta, elId) => {
-      const el = document.getElementById(elId);
-      if (!fasta || fasta.trim().length === 0) {
-        el.textContent = 'Not enough sequences for alignment.'; return;
-      }
-  
-      new msa({
-        el   : `#${elId}`,
-        seqs : msa.io.fasta.parse(fasta),
-  
-        /* ——————————————————————  HERE  ————————————————————— */
-        vis  : {
-          seqlogo     : true,
-          overviewbox : true,
-          conserv     : true,
-  
-          /* turn off the numeric ID column */
-          labelId     : false,   // hides the “ID” column
-          labels      : true,    // keep the name column
-          labelName   : true
-        },
-        conf : {
-          dropImport  : true,
-          algorithm   : 'upgma',
-          tree        : true,
-          order       : 'tree'
-        }
-        /* ———————————————————————————————————————————————— */
-      }).render();
-    };
-  
-    render(`{{ hc_fasta|safe }}`, 'msa-hc');
-    render(`{{ lc_fasta|safe }}`, 'msa-lc');
-  });
-  </script>
+<!-- --------------------------------------------------------------- -->
+<!-- External viewer script                                           -->
+<!-- --------------------------------------------------------------- -->
+<script src="/static/js/msa-viewer.js"></script>
 {% endblock %}

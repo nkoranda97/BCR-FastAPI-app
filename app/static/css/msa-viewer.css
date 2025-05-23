@@ -1,0 +1,20 @@
+/* Only keep styles for JS-driven features, remove layout, border, and background styles. */
+.msa-aa:hover::after {
+  content: attr(data-pos);
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.125rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+}
+.msa-aa.non-matching {
+  background-color: #fef08a;
+  border-radius: 2px;
+} 

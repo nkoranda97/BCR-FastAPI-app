@@ -23,7 +23,7 @@ from ..services.ddl import (
     compute_alignment_and_consensus,
     best_translation,
 )
-from ..dependencies import get_project, get_project_data, get_template_context
+from ..dependencies import get_project, get_project_data, get_template_context, get_project_or_404
 from ..schemas.forms import GeneSelect
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
@@ -329,12 +329,18 @@ async def hc_lc_detail(
         lc_seqs, lc_ids
     )
 
-    # Convert alignments to FASTA for msa.js using user-friendly labels
-    hc_fasta = alignment_to_fasta(hc_alignment, hc_label_map)
-    lc_fasta = alignment_to_fasta(lc_alignment, lc_label_map)
+    # Convert alignments to JSON for msa.js using user-friendly labels
+    hc_json = [
+        {"name": hc_label_map[orig_id], "seq": seq}
+        for orig_id, seq in hc_alignment
+    ]
+    lc_json = [
+        {"name": lc_label_map[orig_id], "seq": seq}
+        for orig_id, seq in lc_alignment
+    ]
 
-    print(f"[DEBUG] HC FASTA length: {len(hc_fasta)}")
-    print(f"[DEBUG] LC FASTA length: {len(lc_fasta)}")
+    print(f"[DEBUG] HC JSON length: {len(hc_json)}")
+    print(f"[DEBUG] LC JSON length: {len(lc_json)}")
 
     return templates.TemplateResponse(
         "analyze/hc_lc_detail.html",
@@ -352,8 +358,8 @@ async def hc_lc_detail(
             lc_alignment=lc_alignment,
             lc_consensus=lc_consensus,
             lc_match_matrix=lc_match_matrix,
-            hc_fasta=hc_fasta,
-            lc_fasta=lc_fasta,
+            hc_json=hc_json,
+            lc_json=lc_json,
             hc_label_map=hc_label_map,
             lc_label_map=lc_label_map,
             active_tab="hc_lc_detail",
@@ -386,46 +392,91 @@ async def gene_explorer(
     )
 
 
+async def get_hc_sequences(project_data: tuple, hc_gene: str):
+    """Get heavy chain sequences for a project and gene."""
+    vdj, _ = project_data
+    merged = merge_data(vdj)
+    
+    # Filter for the HC gene and translate
+    filtered = merged[
+        (merged["v_call_VDJ"] == hc_gene) & 
+        (merged["locus_VDJ"] == "IGH")
+    ].copy()
+    
+    filtered["IGH"] = filtered["IGH"].apply(best_translation)
+    
+    # Convert to list of dicts
+    sequences = []
+    for _, row in filtered.drop_duplicates(subset=["sequence_id"]).iterrows():
+        if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip():
+            sequences.append({
+                "name": f"HC-{len(sequences) + 1}",
+                "seq": row["IGH"]
+            })
+    
+    return sequences
+
+async def get_lc_sequences(project_data: tuple, lc_gene: str):
+    """Get light chain sequences for a project and gene."""
+    vdj, _ = project_data
+    merged = merge_data(vdj)
+    
+    # Determine LC column based on gene prefix
+    lc_col = "IGK" if lc_gene.startswith("IGK") else "IGL"
+    
+    # Filter for the LC gene and translate
+    filtered = merged[
+        (merged["v_call_VJ"] == lc_gene)
+    ].copy()
+    
+    filtered[lc_col] = filtered[lc_col].apply(best_translation)
+    
+    # Convert to list of dicts
+    sequences = []
+    for _, row in filtered.drop_duplicates(subset=["sequence_id"]).iterrows():
+        if row[lc_col] and isinstance(row[lc_col], str) and row[lc_col].strip():
+            sequences.append({
+                "name": f"LC-{len(sequences) + 1}",
+                "seq": row[lc_col]
+            })
+    
+    return sequences
+
 @router.get(
     "/download_fasta/{project_id}/{hc_gene}/{lc_gene}/{chain_type}",
     response_class=Response,
-    name="analyze.download_fasta",
+    name="analyze.download_fasta"
 )
 async def download_fasta(
-    project_id: int,
+    request: Request,
+    project_id: str,
     hc_gene: str,
     lc_gene: str,
     chain_type: str,
     project: Project = Depends(get_project),
-    project_data: tuple = Depends(get_project_data),
+    project_data: tuple = Depends(get_project_data)
 ):
-    """Download FASTA sequences for HC/LC gene pair."""
-    vdj, _ = project_data
-    merged = merge_data(vdj)
-
-    # Filter rows for this HC / LC pair
-    filtered = merged[
-        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
-    ].copy()
-
-    # Translate sequences
-    for col in ("IGH", "IGK", "IGL"):
-        filtered[col] = filtered[col].apply(best_translation)
-
-    # Get sequences based on chain type
-    if chain_type == "hc":
-        sequences = filtered[filtered["locus_VDJ"] == "IGH"]["IGH"].dropna().tolist()
-        filename = f"HC_{hc_gene}_{lc_gene}.fasta"
-    else:  # lc
-        if lc_gene.startswith("IGK"):
-            sequences = filtered["IGK"].dropna().tolist()
-        else:
-            sequences = filtered["IGL"].dropna().tolist()
-        filename = f"LC_{hc_gene}_{lc_gene}.fasta"
-
+    """Download FASTA file for HC/LC gene pair."""
+    # Get sequences
+    if chain_type == 'hc':
+        sequences = await get_hc_sequences(project_data, hc_gene)
+        filename = f"{project.project_name}_HC_{hc_gene}.fasta"
+    else:
+        sequences = await get_lc_sequences(project_data, lc_gene)
+        filename = f"{project.project_name}_LC_{lc_gene}.fasta"
+    
+    # Compute consensus
+    if sequences:
+        consensus = compute_consensus(sequences)
+        # Add consensus as first sequence
+        sequences.insert(0, {"name": "Consensus", "seq": consensus})
+    
     # Convert to FASTA format
-    fasta_content = alignment_to_fasta(sequences)
-
+    fasta_content = "\n".join(
+        f">{seq['name']}\n{seq['seq']}"
+        for seq in sequences
+    )
+    
     return Response(
         content=fasta_content,
         media_type="text/plain",
@@ -433,3 +484,25 @@ async def download_fasta(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+
+def compute_consensus(sequences):
+    """Compute consensus sequence from a list of sequences."""
+    if not sequences:
+        return ""
+    
+    # Get max length
+    max_len = max(len(seq['seq']) for seq in sequences)
+    
+    # For each position, count amino acids
+    consensus = []
+    for i in range(max_len):
+        counts = {}
+        for seq in sequences:
+            aa = seq['seq'][i] if i < len(seq['seq']) else '-'
+            counts[aa] = counts.get(aa, 0) + 1
+        
+        # Get most common amino acid
+        best_aa = max(counts.items(), key=lambda x: x[1])[0]
+        consensus.append(best_aa)
+    
+    return ''.join(consensus)

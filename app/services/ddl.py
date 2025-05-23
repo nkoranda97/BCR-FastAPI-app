@@ -17,6 +17,9 @@ from Bio.Data.CodonTable import TranslationError
 from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, leaves_list
 import numpy as np
+import tempfile
+import subprocess
+import shlex
 
 from app.core.config import get_settings
 
@@ -361,12 +364,11 @@ def lazy_classifier(gene: str) -> Optional[str]:
 
 def compute_alignment_and_consensus(seqs, ids=None):
     """
-    Aligns sequences and computes consensus. Returns:
+    Aligns sequences using MUSCLE and computes consensus. Returns:
     - alignment: list of (ID, aligned sequence) tuples (now clustered by similarity)
     - consensus: consensus string
     - match_matrix: list of bools (True if consensus, False if mismatch)
     """
-    # Remove empty or None
     if ids is None:
         ids = [str(i+1) for i in range(len(seqs))]
     filtered = [(i, s) for i, s in zip(ids, seqs) if s]
@@ -375,30 +377,53 @@ def compute_alignment_and_consensus(seqs, ids=None):
     ids, seqs = zip(*filtered)
     if len(seqs) < 2:
         return list(zip(ids, seqs)), seqs[0] if seqs else '', []
-    # Convert to SeqRecord
-    records = [SeqRecord(Seq(seq), id=str(i)) for i, seq in enumerate(seqs)]
-    max_len = max(len(r.seq) for r in records)
-    for r in records:
-        r.seq = Seq(str(r.seq).ljust(max_len, "-"))
-    alignment = MultipleSeqAlignment(records)
+
+    # Write sequences to a temporary FASTA file
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.fasta') as fasta_file:
+        for i, seq in zip(ids, seqs):
+            fasta_file.write(f'>{i}\n{seq}\n')
+        fasta_file.flush()
+        input_fasta = fasta_file.name
+
+    # Prepare output file
+    with tempfile.NamedTemporaryFile(mode='r+', delete=False, suffix='.fasta') as aligned_file:
+        aligned_fasta = aligned_file.name
+
+    # Run MUSCLE v5 with correct arguments
+    muscle_cmd = f"muscle -align {shlex.quote(input_fasta)} -output {shlex.quote(aligned_fasta)}"
+    print("MUSCLE CMD:", muscle_cmd)
+    try:
+        subprocess.run(muscle_cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"MUSCLE failed: {e.stderr.decode()}")
+
+    # Read aligned sequences
+    alignment = AlignIO.read(aligned_fasta, 'fasta')
+    align_ids = [record.id for record in alignment]
+    align_strs = [str(record.seq) for record in alignment]
+
+    # Compute consensus
     summary_align = AlignInfo.SummaryInfo(alignment)
     consensus = str(summary_align.dumb_consensus())
-    align_strs = [str(r.seq) for r in alignment]
+
+    # Compute match matrix
     match_matrix = []
     for i, c in enumerate(consensus):
         col = [seq[i] for seq in align_strs]
         match_matrix.append([base == c for base in col])
-    # --- CLUSTERING: reorder align_strs and ids by similarity ---
+
+    # Optionally, cluster by similarity (as before)
     if len(align_strs) > 1:
         arr = np.array([list(s) for s in align_strs])
         def hamming(a, b):
             return np.sum(a != b)
+        max_len = arr.shape[1]
         dist_vec = pdist(arr, lambda u, v: hamming(u, v) / max_len)
         linkage_matrix = linkage(dist_vec, method='average')
         order = leaves_list(linkage_matrix)
         align_strs = [align_strs[i] for i in order]
-        ids = [ids[i] for i in order]
-    return list(zip(ids, align_strs)), consensus, match_matrix
+        align_ids = [align_ids[i] for i in order]
+    return list(zip(align_ids, align_strs)), consensus, match_matrix
 
 
 def best_translation(nt) -> str:

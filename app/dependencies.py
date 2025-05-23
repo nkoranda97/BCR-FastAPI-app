@@ -56,3 +56,21 @@ def get_template_context(
         context["div"] = div
 
     return context
+
+
+def get_project(db: Session = Depends(get_db), project_id: int = None):
+    """Get project by ID."""
+    if project_id is None:
+        return None
+    return db.query(Project).filter(Project.project_id == project_id).first()
+
+
+def get_project_or_404(db: Session = Depends(get_db), project_id: str = None):
+    """Get project by ID or raise 404."""
+    project = get_project(db, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found"
+        )
+    return project
