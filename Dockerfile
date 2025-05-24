@@ -1,67 +1,53 @@
-# Use Python 3.13 slim as base image
 FROM python:3.13-slim
 
-# Set working directory
+# -----------------------------------------------------------------------------
+# Micromamba (Conda) bootstrap – gives us ARM64‑native binaries in one shot
+# -----------------------------------------------------------------------------
+ARG MAMBA_VERSION=1.5.8
+ENV MAMBA_ROOT_PREFIX=/opt/conda \
+    PATH=/opt/conda/bin:$PATH \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates bzip2 liblzma-dev \
+        build-essential gcc g++ && \
+    mkdir -p /tmp/micromamba && \
+    cd /tmp/micromamba && \
+    curl -L "https://micro.mamba.pm/api/micromamba/linux-aarch64/${MAMBA_VERSION}" -o micromamba.tar.bz2 && \
+    tar -xf micromamba.tar.bz2 && \
+    mv bin/micromamba /usr/local/bin/ && \
+    cd / && \
+    rm -rf /tmp/micromamba && \
+    micromamba shell init -s bash -p $MAMBA_ROOT_PREFIX && \
+    micromamba install -y -n base -c conda-forge -c bioconda \
+        python=3.13 \
+        uv \
+        blast=2.16.0 \
+        igblast=1.22.0 \
+        muscle=5.1 && \
+    micromamba clean -a -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# conda packages place binaries in $MAMBA_ROOT_PREFIX/bin, already in PATH
+ENV BLASTDB=/app/app/database/blast \
+    GERMLINE=/app/app/database/germlines \
+    IGDATA=/app/app/database/igblast \
+    PYTHONPATH=/app
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    build-essential \
-    libncurses5-dev \
-    libncursesw5-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    liblzma-dev \
-    cmake \
-    git \
-    cpio \
-    && rm -rf /var/lib/apt/lists/*
-
-# Download and install BLAST+ for ARM64
-RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.16.0+-aarch64-linux.tar.gz \
-    && tar -xzf ncbi-blast-2.16.0+-aarch64-linux.tar.gz \
-    && mv ncbi-blast-2.16.0+ /opt/blast \
-    && rm ncbi-blast-2.16.0+-aarch64-linux.tar.gz
-
-# Download and install IGBLAST
-RUN cd /tmp && \
-    wget https://ftp.ncbi.nlm.nih.gov/blast/executables/igblast/release/1.22.0/ncbi-igblast-1.22.0-x64-linux.tar.gz -O igblast.tar.gz && \
-    tar -xzf igblast.tar.gz && \
-    mv ncbi-igblast-1.22.0 /opt/igblast && \
-    rm igblast.tar.gz && \
-    # Create symlinks for IGBLAST executables
-    ln -sf /opt/igblast/bin/igblastn /usr/local/bin/igblastn && \
-    ln -sf /opt/igblast/bin/makeblastdb /usr/local/bin/makeblastdb && \
-    ln -sf /opt/igblast/bin/update_blastdb.pl /usr/local/bin/update_blastdb.pl
-
-# Add BLAST and IGBLAST to PATH
-ENV PATH="/opt/blast/bin:/opt/igblast/bin:/usr/local/bin:${PATH}"
-
-# Install uv
-RUN pip install uv
-
-# Install MUSCLE (added as a separate step for better Docker caching)
-RUN apt-get update && apt-get install -y muscle && rm -rf /var/lib/apt/lists/*
-
-# Copy pyproject.toml first to leverage Docker cache
-COPY pyproject.toml .
+# -----------------------------------------------------------------------------
+# Python dependencies (cached separately via pyproject.toml)
+# -----------------------------------------------------------------------------
+COPY pyproject.toml ./
 RUN uv sync
 
-# Copy the rest of the application
+# Copy rest of application
 COPY . .
 
-# Create necessary directories
+# Folders used at runtime
 RUN mkdir -p instance/uploads instance/blast instance/igblast
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV BLASTDB=/app/app/database/blast
-ENV GERMLINE=/app/app/database/germlines
-ENV IGDATA=/app/app/database/igblast
-
-# Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

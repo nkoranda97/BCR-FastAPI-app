@@ -10,6 +10,7 @@ class ProjectBase(BaseModel):
     directory_path: str
     vdj_path: str
     adata_path: Optional[str] = None
+    species: str
 
 
 class ProjectCreate(ProjectBase):

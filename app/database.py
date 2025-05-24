@@ -29,6 +29,7 @@ class Project(Base):
     directory_path = Column(String)
     vdj_path = Column(String, nullable=True)
     adata_path = Column(String, nullable=True)
+    species = Column(String)
 
 
 def get_db():

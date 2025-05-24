@@ -42,7 +42,7 @@
 
       {% if hc_json and hc_json|length > 0 %}
       <div class="overflow-x-auto w-full border border-slate-200 rounded">
-        <div id="msa-hc" data-seqs='{{ hc_json|tojson|safe }}'></div>
+        <div id="msa-hc" data-seqs='{{ hc_json|tojson|safe }}' data-region-blocks='{{ hc_region_blocks|tojson|safe if hc_region_blocks else '' }}'></div>
       </div>
       {% else %}
       <p class="text-gray-500">No Heavy-chain alignment data available.</p>
@@ -66,7 +66,7 @@
 
       {% if lc_json and lc_json|length > 0 %}
       <div class="overflow-x-auto w-full border border-slate-200 rounded">
-        <div id="msa-lc" data-seqs='{{ lc_json|tojson|safe }}'></div>
+        <div id="msa-lc" data-seqs='{{ lc_json|tojson|safe }}' data-region-blocks='{{ lc_region_blocks|tojson|safe if lc_region_blocks else '' }}'></div>
       </div>
       {% else %}
       <p class="text-gray-500">No Light-chain alignment data available.</p>

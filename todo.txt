@@ -1,7 +1,11 @@
--alignment order of aligntments
--CDR H1 H2 H3 data annotated into alignment??
--download selection as a fasta file
--download consensus sequence
--some translations might be off, alignments aren't aligning
--alignment grouping to keep like sequences close together 
--fix upload button
+- CDR H1 H2 H3 data annotated into alignment??
+- fix tailwind dependency call
+- clean up or add broken links
+- clean up and organize graphs
+- add more features to sequence alignment viewer
+    - toggle highlighting off and on
+    - fix the Consensus name not freezing
+- impliment logo plots in some why
+- can I make graphs downloadable as figures? 
+- the .env probably shouldn't be included in the container? Figure out a way to impliment this better
+- "electronize" the app??

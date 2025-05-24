@@ -56,6 +56,7 @@ async def upload_project(
                 directory_path=project_folder,
                 vdj_path=vdj_path,
                 adata_path=adata_path,
+                species=species,
             )
             db.add(db_project)
             db.commit()
@@ -73,6 +74,7 @@ async def upload_project(
                 directory_path=project_folder,
                 vdj_path=vdj_path,
                 adata_path="NULL",
+                species=species,
             )
             db.add(db_project)
             db.commit()

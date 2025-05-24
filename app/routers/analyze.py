@@ -25,6 +25,7 @@ from ..services.ddl import (
 )
 from ..dependencies import get_project, get_project_data, get_template_context, get_project_or_404
 from ..schemas.forms import GeneSelect
+from app.services.germline_annotation import get_germline_and_annotation
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
@@ -329,15 +330,42 @@ async def hc_lc_detail(
         lc_seqs, lc_ids
     )
 
-    # Convert alignments to JSON for msa.js using user-friendly labels
-    hc_json = [
+    # --- Germline and annotation rows for HC ---
+    species = project.species
+    germ_anno = get_germline_and_annotation(hc_gene, species, 'hc')
+    hc_json = []
+    hc_region_blocks = None
+    if germ_anno:
+        germ_seq, region_arr, region_blocks = germ_anno
+        hc_region_blocks = region_blocks
+        if region_arr:
+            region_str = ''.join(region_arr)
+            hc_json.append({"name": "Region", "seq": region_str})
+        hc_json.append({"name": "Germline", "seq": germ_seq})
+    hc_json.extend([
         {"name": hc_label_map[orig_id], "seq": seq}
         for orig_id, seq in hc_alignment
-    ]
-    lc_json = [
+    ])
+    if hc_consensus:
+        hc_json.append({"name": "Consensus", "seq": hc_consensus})
+
+    # --- Germline and annotation rows for LC ---
+    lc_region_blocks = None
+    germ_anno_lc = get_germline_and_annotation(lc_gene, species, 'lc')
+    lc_json = []
+    if germ_anno_lc:
+        lc_seq, lc_region_arr, lc_blocks = germ_anno_lc
+        lc_region_blocks = lc_blocks
+        if lc_region_arr:
+            region_str = ''.join(lc_region_arr)
+            lc_json.append({"name": "Region", "seq": region_str})
+        lc_json.append({"name": "Germline", "seq": lc_seq})
+    lc_json.extend([
         {"name": lc_label_map[orig_id], "seq": seq}
         for orig_id, seq in lc_alignment
-    ]
+    ])
+    if lc_consensus:
+        lc_json.append({"name": "Consensus", "seq": lc_consensus})
 
     print(f"[DEBUG] HC JSON length: {len(hc_json)}")
     print(f"[DEBUG] LC JSON length: {len(lc_json)}")
@@ -362,6 +390,8 @@ async def hc_lc_detail(
             lc_json=lc_json,
             hc_label_map=hc_label_map,
             lc_label_map=lc_label_map,
+            hc_region_blocks=hc_region_blocks,
+            lc_region_blocks=lc_region_blocks,
             active_tab="hc_lc_detail",
         ),
     )
