@@ -1,4 +1,3 @@
-- CDR H1 H2 H3 data annotated into alignment??
 - fix tailwind dependency call
 - clean up or add broken links
 - clean up and organize graphs
@@ -9,3 +8,4 @@
 - can I make graphs downloadable as figures? 
 - the .env probably shouldn't be included in the container? Figure out a way to impliment this better
 - "electronize" the app??
+- add annotation database for human germline sequences

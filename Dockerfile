@@ -36,14 +36,10 @@ ENV BLASTDB=/app/app/database/blast \
 
 WORKDIR /app
 
-# -----------------------------------------------------------------------------
-# Python dependencies (cached separately via pyproject.toml)
-# -----------------------------------------------------------------------------
-COPY pyproject.toml ./
-RUN uv sync
-
 # Copy rest of application
 COPY . .
+
+RUN uv sync
 
 # Folders used at runtime
 RUN mkdir -p instance/uploads instance/blast instance/igblast
