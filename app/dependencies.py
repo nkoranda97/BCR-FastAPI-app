@@ -38,15 +38,13 @@ def get_template_context(
     active_tab: str = "graphs",
     **kwargs,
 ) -> dict:
-    """Helper function to create consistent template context."""
-    from bokeh.resources import CDN
+
 
     context = {
         "request": request,
         "project": project,
         "project_id": project_id,
         "active_tab": active_tab,
-        "resources": CDN.render(),
         **kwargs,
     }
 

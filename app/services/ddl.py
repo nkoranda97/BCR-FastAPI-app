@@ -339,27 +339,23 @@ def lazy_classifier(gene: str) -> Optional[str]:
     # Extract the prefix (e.g., 'IGHV' from 'IGHV1-80')
     prefix = "".join(c for c in gene if not c.isdigit() and c != "-")
 
-    if prefix.startswith("IGHV"):
-        return "v_call_VDJ"
-    elif prefix.startswith("IGHD"):
-        return "d_call_VDJ"
-    elif prefix.startswith("IGHJ"):
-        return "j_call_VDJ"
-    elif (
-        prefix.startswith("IGHG")
-        or prefix.startswith("IGHA")
-        or prefix.startswith("IGHD")
-        or prefix.startswith("IGHE")
-        or prefix.startswith("IGHM")
-    ):
-        return "c_call_VDJ"
-    elif prefix.startswith("IGKV") or prefix.startswith("IGLV"):
-        return "v_call_VJ"
-    elif prefix.startswith("IGKJ") or prefix.startswith("IGLJ"):
-        return "j_call_VJ"
-    elif prefix.startswith("IGKC") or prefix.startswith("IGLC"):
-        return "c_call_VJ"
-    return None
+    match prefix:
+        case prefix if prefix.startswith("IGHV"):
+            return "v_call_VDJ"
+        case prefix if prefix.startswith("IGHD"):
+            return "d_call_VDJ"
+        case prefix if prefix.startswith("IGHJ"):
+            return "j_call_VDJ"
+        case prefix if any(prefix.startswith(x) for x in ["IGHG", "IGHA", "IGHD", "IGHE", "IGHM"]):
+            return "c_call_VDJ"
+        case prefix if prefix.startswith("IGKV") or prefix.startswith("IGLV"):
+            return "v_call_VJ"
+        case prefix if prefix.startswith("IGKJ") or prefix.startswith("IGLJ"):
+            return "j_call_VJ"
+        case prefix if prefix.startswith("IGKC") or prefix.startswith("IGLC"):
+            return "c_call_VJ"
+        case _:
+            return None
 
 
 def compute_alignment_and_consensus(seqs, ids=None):

@@ -21,18 +21,47 @@ bcr_fastAPI/
 
 ## Setup
 
-1. Create enviornment and install dependencies
+1. Install Homebrew if not already installed:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+2. Install required bioinformatics tools:
+   - BLAST: 
+     ```bash
+     # macOS (Intel/Apple Silicon)
+     brew install blast
+     ```
+   - IgBLAST:
+     ```bash
+     # macOS (Intel/Apple Silicon)
+     # Download from NCBI
+     wget https://ftp.ncbi.nlm.nih.gov/blast/executables/igblast/release/1.22.0/ncbi-igblast-1.22.0-x64-macosx.tar.gz
+     
+     # Extract and add to PATH
+     tar -xzf ncbi-igblast-1.22.0-x64-macosx.tar.gz
+     # Add to PATH in your .zshrc or .bash_profile
+     export PATH=$PATH:/path/to/ncbi-igblast-1.22.0/bin
+     ```
+     Note: For Apple Silicon Macs, the x64 version requires Rosetta 2.
+   - MUSCLE:
+     ```bash
+     # macOS (Intel/Apple Silicon)
+     brew install muscle
+     ```
+
+3. Create enviornment and install dependencies
     ```bash
     uv sync
     ```
 
-3. Set up environment variables:
+4. Set up environment variables:
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
 
-4. Run the application:
+5. Run the application:
    ```bash
    uv run uvicorn app.main:app --reload
    # or 
@@ -58,9 +87,6 @@ The application will be available at the same URLs as the local development serv
 The application will be available at:
 - http://127.0.0.1:8000 (localhost)
 - http://0.0.0.0:8000 (accessible from other devices on the network)
-
-
-
 
 ## Development
 

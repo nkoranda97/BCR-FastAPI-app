@@ -1,9 +1,7 @@
 - clean up or add broken links
-- clean up and organize graphs
 - add more features to sequence alignment viewer
     - toggle highlighting off and on
     - fix the Consensus name not freezing
-- impliment logo plots in some why
-- can I make graphs downloadable as figures? 
+- impliment logo plots in some way
 - the .env probably shouldn't be included in the container? Figure out a way to impliment this better
 - add annotation database for human germline sequences

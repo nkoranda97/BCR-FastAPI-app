@@ -2,20 +2,23 @@
 
 {% block analyze_content %}
 <div class="space-y-6">
-    <!-- Header -->
     <div class="sm:flex sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Data Visualization</h1>
             <p class="mt-2 text-sm text-gray-600">Interactive graphs and analysis of your BCR data</p>
         </div>
+        <button id="openDownloadModal" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download Graphs
+        </button>
     </div>
 
-    <!-- Main Content -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Heavy Chain Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="graphGrid">
         <div class="space-y-6">
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Heavy Chain V Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -23,8 +26,8 @@
                 </div>
             </div>
 
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Heavy Chain C Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -32,8 +35,8 @@
                 </div>
             </div>
 
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Heavy Chain J Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -41,8 +44,8 @@
                 </div>
             </div>
 
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Isotype Distribution</h3>
                 </div>
                 <div class="p-6">
@@ -51,10 +54,9 @@
             </div>
         </div>
 
-        <!-- Light Chain Charts -->
         <div class="space-y-6">
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Light Chain V Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -62,8 +64,8 @@
                 </div>
             </div>
 
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Light Chain C Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -71,8 +73,8 @@
                 </div>
             </div>
 
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
+            <div class="bg-white shadow rounded-lg overflow-hidden graph-container cursor-pointer transition-all duration-300" data-expanded="false">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-medium text-gray-900">Light Chain J Gene Usage</h3>
                 </div>
                 <div class="p-6">
@@ -82,6 +84,100 @@
         </div>
     </div>
 </div>
+
+<div id="downloadModal" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-75 p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-4 space-y-4 relative">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold text-gray-800">Download Graphs</h2>
+            <button id="closeDownloadModal" class="text-gray-400 hover:text-blue-600 transition-colors focus:outline-none" aria-label="Close modal">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="downloadGraphsForm" class="space-y-3">
+            <div class="space-y-3">
+                <label class="flex items-center gap-3 text-blue-700 font-semibold cursor-pointer select-none p-2 rounded-md">
+                    <input type="checkbox" id="selectAllGraphs" class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                    <span>Select All</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="vCallChart1" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Heavy Chain V Gene Usage</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="cCallChart1" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Heavy Chain C Gene Usage</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="jCallChart1" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Heavy Chain J Gene Usage</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="isotypeChart1" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Isotype Distribution</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="vCallChart2" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Light Chain V Gene Usage</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="cCallChart2" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Light Chain C Gene Usage</span>
+                </label>
+                <label class="flex items-center gap-3 text-gray-700 hover:bg-gray-50 p-2 rounded-md cursor-pointer">
+                    <input type="checkbox" name="graphs" value="jCallChart2" checked class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span>Light Chain J Gene Usage</span>
+                </label>
+            </div>
+            <hr class="my-3">
+            <button type="submit" class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                Download Selected
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Custom styles for graph expansion - these are fine to keep as they handle dynamic states */
+.graph-container {
+    transition: all 0.3s ease-in-out;
+}
+
+.graph-container.expanded {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90vw; /* Consider using Tailwind's w-screen or similar if you want it full width */
+    height: 90vh; /* Consider using Tailwind's h-screen or similar */
+    z-index: 50; /* Or Tailwind's z-50 */
+    background: white; /* Or Tailwind's bg-white */
+}
+
+.graph-container.expanded canvas {
+    width: 100% !important;
+    height: calc(100% - 80px) !important; /* Calculation might be specific */
+}
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5); /* Or Tailwind's bg-black bg-opacity-50 */
+    z-index: 40; /* Or Tailwind's z-40 */
+    display: none; /* Controlled by JS adding/removing 'active' or Tailwind's 'hidden' */
+}
+
+.overlay.active { /* This class is still used by your JS for the graph overlay */
+    display: block;
+}
+
+/* Note: The custom styles for #downloadModal and #downloadModal.active have been removed
+   as Tailwind's 'hidden' class is now used for visibility. */
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -90,7 +186,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const chartData = {{ chart_data|tojson|safe }};
-    
+
     // Create heavy chain charts
     createBarChart('vCallChart1', chartData.v_call, 'Heavy Chain V Gene Usage', 'HC');
     createBarChart('cCallChart1', chartData.c_call, 'Heavy Chain C Gene Usage', 'HC');
@@ -101,6 +197,199 @@ document.addEventListener('DOMContentLoaded', function() {
     createBarChart('vCallChart2', chartData.lc_v_call, 'Light Chain V Gene Usage', 'LC');
     createBarChart('cCallChart2', chartData.lc_c_call, 'Light Chain C Gene Usage', 'LC');
     createBarChart('jCallChart2', chartData.lc_j_call, 'Light Chain J Gene Usage', 'LC');
+
+    // Add overlay div for graph expansion
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay'; // This overlay is for graph expansion
+    document.body.appendChild(overlay);
+
+    // Handle graph expansion
+    const graphContainers = document.querySelectorAll('.graph-container');
+    graphContainers.forEach(container => {
+        container.addEventListener('click', function() {
+            const isExpanded = this.getAttribute('data-expanded') === 'true';
+
+            // Collapse all graphs first
+            graphContainers.forEach(c => {
+                c.setAttribute('data-expanded', 'false');
+                c.classList.remove('expanded');
+            });
+            overlay.classList.remove('active'); // Deactivate graph expansion overlay
+
+            // If the clicked graph wasn't expanded, expand it
+            if (!isExpanded) {
+                this.setAttribute('data-expanded', 'true');
+                this.classList.add('expanded');
+                overlay.classList.add('active'); // Activate graph expansion overlay
+            }
+
+            // Resize charts
+            // Ensure Chart.instances is the correct way to access your chart instances
+            // This might depend on how your charts.js library exposes them.
+            // If using Chart.js v3+, active charts are usually Chart.instances[chartId] or similar.
+            // For simplicity, assuming Chart.instances is a global array/object:
+            Object.values(Chart.instances).forEach(chart => {
+                if (chart && typeof chart.resize === 'function') {
+                    chart.resize();
+                }
+            });
+        });
+    });
+
+    // Close expanded graph when clicking overlay
+    overlay.addEventListener('click', function() {
+        graphContainers.forEach(container => {
+            container.setAttribute('data-expanded', 'false');
+            container.classList.remove('expanded');
+        });
+        this.classList.remove('active'); // Deactivate graph expansion overlay
+
+        // Resize charts
+        Object.values(Chart.instances).forEach(chart => {
+            if (chart && typeof chart.resize === 'function') {
+                chart.resize();
+            }
+        });
+    });
+
+    // Modal logic for Download Graphs
+    const openModalBtn = document.getElementById('openDownloadModal');
+    const closeModalBtn = document.getElementById('closeDownloadModal');
+    const downloadModal = document.getElementById('downloadModal');
+    const downloadGraphsForm = document.getElementById('downloadGraphsForm');
+    const selectAllCheckbox = document.getElementById('selectAllGraphs');
+
+    if (openModalBtn && closeModalBtn && downloadModal && downloadGraphsForm && selectAllCheckbox) {
+        openModalBtn.addEventListener('click', function() {
+            downloadModal.classList.remove('hidden');
+            // Focus the first checkbox for accessibility
+            setTimeout(() => {
+                const firstCheckbox = downloadGraphsForm.querySelector('input[name="graphs"]');
+                if (firstCheckbox) firstCheckbox.focus();
+            }, 100);
+        });
+
+        closeModalBtn.addEventListener('click', function() {
+            downloadModal.classList.add('hidden');
+            openModalBtn.focus();
+        });
+
+        // Close modal if backdrop is clicked
+        downloadModal.addEventListener('click', function(e) {
+            if (e.target === downloadModal) {
+                downloadModal.classList.add('hidden');
+                openModalBtn.focus();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (!downloadModal.classList.contains('hidden') && e.key === 'Escape') {
+                downloadModal.classList.add('hidden');
+                openModalBtn.focus();
+            }
+        });
+
+        // Select All logic
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = downloadGraphsForm.querySelectorAll('input[name="graphs"]');
+            checkboxes.forEach(cb => { cb.checked = selectAllCheckbox.checked; });
+        });
+        // If any individual checkbox is unchecked, uncheck Select All
+        downloadGraphsForm.querySelectorAll('input[name="graphs"]').forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (!this.checked) {
+                    selectAllCheckbox.checked = false;
+                } else {
+                    const allChecked = Array.from(downloadGraphsForm.querySelectorAll('input[name="graphs"]')).every(cb => cb.checked);
+                    selectAllCheckbox.checked = allChecked;
+                }
+            });
+        });
+
+        // Download selected graphs
+        downloadGraphsForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const checked = Array.from(downloadGraphsForm.querySelectorAll('input[name="graphs"]:checked'));
+            const chartNames = {
+                vCallChart1: 'Heavy_Chain_V_Gene_Usage',
+                cCallChart1: 'Heavy_Chain_C_Gene_Usage',
+                jCallChart1: 'Heavy_Chain_J_Gene_Usage',
+                isotypeChart1: 'Isotype_Distribution',
+                vCallChart2: 'Light_Chain_V_Gene_Usage',
+                cCallChart2: 'Light_Chain_C_Gene_Usage',
+                jCallChart2: 'Light_Chain_J_Gene_Usage'
+            };
+            checked.forEach(input => {
+                downloadChart(input.value, chartNames[input.value]);
+            });
+            downloadModal.classList.add('hidden');
+            openModalBtn.focus();
+        });
+    }
 });
+
+// Function to download chart as PNG (with white background)
+function downloadChart(chartId, filename) {
+    const canvas = document.getElementById(chartId);
+    if (!canvas) {
+        console.error('Canvas element not found:', chartId);
+        return;
+    }
+    const chartInstance = Chart.getChart(chartId); // Use Chart.js's own method to get the instance
+    if (!chartInstance) {
+        console.error('Chart instance not found:', chartId);
+        // Fallback to direct canvas manipulation if Chart instance is not registered globally in an expected way
+        const context = canvas.getContext('2d');
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        context.save();
+        context.globalCompositeOperation = 'destination-over';
+        context.fillStyle = '#fff'; // Ensure white background
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        const dataURL = canvas.toDataURL('image/png');
+        context.restore(); // Restore original canvas state
+        context.putImageData(imageData, 0, 0); // Put back the original image data
+
+        const link = document.createElement('a');
+        link.download = `${filename}.png`;
+        link.href = dataURL;
+        document.body.appendChild(link); // Required for Firefox
+        link.click();
+        document.body.removeChild(link);
+        return;
+    }
+
+    // If Chart instance exists, it's better to use its methods for rendering if available,
+    // but for a simple white background, direct canvas manipulation is often needed before toDataURL.
+    const originalBgColor = chartInstance.options.plugins?.backgroundColor || chartInstance.options.animation?.backgroundColor; // Example path
+    
+    // Temporarily set background to white for download
+    // This assumes your chart library draws on a transparent canvas by default or you can control its background
+    const canvasToExport = chartInstance.canvas;
+    const ctx = canvasToExport.getContext('2d');
+    
+    // Save current canvas state
+    ctx.save();
+    
+    // Draw a white background
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvasToExport.width, canvasToExport.height);
+    
+    // Get the data URL with the white background
+    const image = chartInstance.toBase64Image('image/png'); // Chart.js method
+    
+    // Restore canvas state (removes the white background from the live chart)
+    ctx.restore(); 
+    // If the above restore doesn't clear it (e.g., if chart redraws), you might need to redraw or clear manually.
+    // A simpler approach often involves a temporary canvas if the library doesn't handle backgrounds well for export.
+
+    const link = document.createElement('a');
+    link.download = `${filename}.png`;
+    link.href = image;
+    document.body.appendChild(link); // Required for Firefox
+    link.click();
+    document.body.removeChild(link);
+}
 </script>
-{% endblock %} 
+{% endblock %}
