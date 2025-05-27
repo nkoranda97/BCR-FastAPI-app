@@ -8,6 +8,12 @@
 {% set hc_fasta = hc_fasta or '' %}
 {% set lc_fasta = lc_fasta or '' %}
 
+<!-- Loading Indicator -->
+<div id="loading-indicator" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, 0.8); padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); z-index: 1000;">
+    <p>Loading alignment...</p>
+    <!-- You can replace this with a spinner or a more sophisticated loading animation -->
+</div>
+
 <!-- =====================================================================
      Paired Alignment Viewer page – cards now constrain width & scroll     
      ===================================================================== -->
@@ -31,22 +37,11 @@
     <div class="rounded-lg shadow border border-slate-200 bg-white p-6 space-y-4 overflow-hidden">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold">Heavy Chain Amino-acid Alignment</h2>
-        {% if hc_json and hc_json|length > 0 %}
-        <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='hc') }}"
-           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
-           aria-label="Download Heavy-chain FASTA file">
-          Download HC FASTA
-        </a>
-        {% endif %}
+        <a id="download-hc-fasta" href="#" style="display:none" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium" aria-label="Download Heavy-chain FASTA file">Download HC FASTA</a>
       </div>
-
-      {% if hc_json and hc_json|length > 0 %}
       <div class="overflow-x-auto w-full border border-slate-200 rounded">
-        <div id="msa-hc" data-seqs='{{ hc_json|tojson|safe }}' data-region-blocks='{{ hc_region_blocks|tojson|safe if hc_region_blocks else '' }}'></div>
+        <div id="msa-hc"><div class="flex flex-col items-center justify-center p-4"><div class="loader mb-2"></div><div class="text-gray-500 text-center">Loading heavy-chain alignment</div></div></div>
       </div>
-      {% else %}
-      <p class="text-gray-500">No Heavy-chain alignment data available.</p>
-      {% endif %}
     </div>
 
     <!-- --------------------------------------------------------------- -->
@@ -55,22 +50,11 @@
     <div class="rounded-lg shadow border border-slate-200 bg-white p-6 space-y-4 overflow-hidden">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold">Light Chain Amino-acid Alignment</h2>
-        {% if lc_json and lc_json|length > 0 %}
-        <a href="{{ url_for('analyze.download_fasta', project_id=project_id, hc_gene=hc_gene, lc_gene=lc_gene, chain_type='lc') }}"
-           class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
-           aria-label="Download Light-chain FASTA file">
-          Download LC FASTA
-        </a>
-        {% endif %}
+        <a id="download-lc-fasta" href="#" style="display:none" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium" aria-label="Download Light-chain FASTA file">Download LC FASTA</a>
       </div>
-
-      {% if lc_json and lc_json|length > 0 %}
       <div class="overflow-x-auto w-full border border-slate-200 rounded">
-        <div id="msa-lc" data-seqs='{{ lc_json|tojson|safe }}' data-region-blocks='{{ lc_region_blocks|tojson|safe if lc_region_blocks else '' }}'></div>
+        <div id="msa-lc"><div class="flex flex-col items-center justify-center p-4"><div class="loader mb-2"></div><div class="text-gray-500 text-center">Loading light-chain alignment</div></div></div>
       </div>
-      {% else %}
-      <p class="text-gray-500">No Light-chain alignment data available.</p>
-      {% endif %}
     </div>
   </div>
 </div>
@@ -79,4 +63,60 @@
 <!-- External viewer script                                           -->
 <!-- --------------------------------------------------------------- -->
 <script src="/static/js/msa-viewer.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const hcContainer = document.getElementById('msa-hc');
+    const lcContainer = document.getElementById('msa-lc');
+    const downloadHc = document.getElementById('download-hc-fasta');
+    const downloadLc = document.getElementById('download-lc-fasta');
+    const projectId = "{{ project_id }}";
+    const hcGene = "{{ hc_gene }}";
+    const lcGene = "{{ lc_gene }}";
+    fetch(`/analyze/hc_lc_alignment_data/${projectId}/${encodeURIComponent(hcGene)}/${encodeURIComponent(lcGene)}`)
+      .then(resp => resp.json())
+      .then(data => {
+        // HC
+        if (data.hc_json && data.hc_json.length > 0) {
+          hcContainer.dataset.seqs = JSON.stringify(data.hc_json);
+          hcContainer.dataset.regionBlocks = data.hc_region_blocks ? JSON.stringify(data.hc_region_blocks) : '';
+          hcContainer.innerHTML = '';
+          new MSAViewer('msa-hc', data.hc_json, data.hc_region_blocks);
+          downloadHc.style.display = '';
+          downloadHc.href = `/analyze/download_fasta/${projectId}/${encodeURIComponent(hcGene)}/${encodeURIComponent(lcGene)}/hc`;
+        } else {
+          hcContainer.innerHTML = '<p class="text-gray-500 p-4 text-center">No Heavy-chain alignment data available.</p>';
+        }
+        // LC
+        if (data.lc_json && data.lc_json.length > 0) {
+          lcContainer.dataset.seqs = JSON.stringify(data.lc_json);
+          lcContainer.dataset.regionBlocks = data.lc_region_blocks ? JSON.stringify(data.lc_region_blocks) : '';
+          lcContainer.innerHTML = '';
+          new MSAViewer('msa-lc', data.lc_json, data.lc_region_blocks);
+          downloadLc.style.display = '';
+          downloadLc.href = `/analyze/download_fasta/${projectId}/${encodeURIComponent(hcGene)}/${encodeURIComponent(lcGene)}/lc`;
+        } else {
+          lcContainer.innerHTML = '<p class="text-gray-500 p-4 text-center">No Light-chain alignment data available.</p>';
+        }
+      })
+      .catch(err => {
+        hcContainer.innerHTML = '<p class="text-red-500 p-4 text-center">Error loading Heavy-chain alignment data.</p>';
+        lcContainer.innerHTML = '<p class="text-red-500 p-4 text-center">Error loading Light-chain alignment data.</p>';
+      });
+});
+</script>
+
+<style>
+.loader {
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}

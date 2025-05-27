@@ -43,7 +43,7 @@ app.include_router(auth.router)
 app.include_router(project_selection.router, dependencies=[Depends(auth.require_login)])
 app.include_router(analyze.router, dependencies=[Depends(auth.require_login)])
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(auth.require_login)])
 async def home(request: Request, db: Session = Depends(get_db)):
     from app.database import Project
     projects = db.query(Project).all()

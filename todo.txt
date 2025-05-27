@@ -7,5 +7,4 @@
 - impliment logo plots in some why
 - can I make graphs downloadable as figures? 
 - the .env probably shouldn't be included in the container? Figure out a way to impliment this better
-- "electronize" the app??
 - add annotation database for human germline sequences

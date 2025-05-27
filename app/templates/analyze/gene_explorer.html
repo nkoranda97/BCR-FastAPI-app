@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.lc_genes && data.lc_genes.length > 0) {
                         let html = `<h2 class='text-xl font-semibold mb-4'>LC Genes for <span class='text-blue-700'>${gene}</span></h2><ul class='divide-y'>`;
                         data.lc_genes.forEach(row => {
-                            html += `<li class='py-2 flex items-center justify-between'><span class='font-mono text-blue-800'>${row.gene}</span><span class='text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded'>${row.count}</span><a href='/analyze/hc_lc_detail/{{ project_id }}/${encodeURIComponent(gene)}/${encodeURIComponent(row.gene)}' class='ml-4 text-blue-600 hover:underline'>View Alignment</a></li>`;
+                            html += `<li class='py-2 flex items-center justify-between'><span class='font-mono text-blue-800'>${row.gene}</span><span class='text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded'>${row.count}</span><a href='/analyze/hc_lc_detail/{{ project_id }}/${encodeURIComponent(gene)}/${encodeURIComponent(row.gene)}' class='ml-4 text-blue-600 hover:underline view-alignment-link'>View Alignment</a></li>`;
                         });
                         html += '</ul>';
                         panel.innerHTML = html;
@@ -64,6 +64,23 @@ document.addEventListener('DOMContentLoaded', function() {
     overlay.addEventListener('click', function(e) {
         if (e.target === overlay) {
             overlay.classList.add('hidden');
+        }
+    });
+    // Add this at the end of the DOMContentLoaded handler
+    document.body.addEventListener('click', function (e) {
+        const link = e.target.closest('a.view-alignment-link');
+        if (link) {
+            e.preventDefault();
+            // Hide the overlay/modal
+            const overlay = document.getElementById('lc-genes-overlay');
+            if (overlay) overlay.classList.add('hidden');
+            // Show the global loader
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if (loadingIndicator) loadingIndicator.style.display = 'block';
+            // Now navigate after a short delay
+            setTimeout(() => {
+                window.location = link.href;
+            }, 50);
         }
     });
 });

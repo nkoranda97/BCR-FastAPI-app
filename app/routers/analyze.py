@@ -4,18 +4,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
-from bokeh.embed import components
-from bokeh.plotting import figure
-from bokeh.models import Tabs, TabPanel
-from bokeh.resources import CDN
 import re
 import pandas as pd
 
 from ..database import get_db, Project
-from ..services.plotting import plot
 
-# from ..services.plotting import alignment_viewer
-from ..services.bokeh_logo import generate_logo
 from ..services.ddl import (
     load_project,
     merge_data,
@@ -254,36 +247,24 @@ def alignment_to_fasta(seqs, label_map):
 
 
 @router.get(
-    "/hc_lc_detail/{project_id}/{hc_gene}/{lc_gene}",
-    response_class=HTMLResponse,
-    name="analyze.hc_lc_detail",
+    "/hc_lc_alignment_data/{project_id}/{hc_gene}/{lc_gene}",
+    response_class=JSONResponse,
+    name="analyze.hc_lc_alignment_data",
 )
-async def hc_lc_detail(
-    request: Request,
+async def hc_lc_alignment_data(
     project_id: int,
     hc_gene: str,
     lc_gene: str,
     project: Project = Depends(get_project),
     project_data: tuple = Depends(get_project_data),
 ):
-    """
-    Show details for a selected HC/LC gene pair.
-    Heavy-chain AA comes from IGH; light-chain AA comes from IGK / IGL,
-    translated from nucleotide to amino-acid with best_translation().
-    """
     vdj, _ = project_data
     merged = merge_data(vdj)
-
-    # ---------------- filter rows for this HC / LC pair ----------------
     filtered = merged[
         (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
     ].copy()
-
-    # translate the chain-specific NT columns in-place
     for col in ("IGH", "IGK", "IGL"):
         filtered[col] = filtered[col].apply(best_translation)
-
-    # Prepare tables with amino acid sequences
     hc_table = (
         filtered[filtered["locus_VDJ"] == "IGH"][
             ["IGH", "sequence_id", "isotype", "clone_id"]
@@ -304,33 +285,18 @@ async def hc_lc_detail(
         if lc_col
         else []
     )
-
-    print(f"[DEBUG] HC table length: {len(hc_table)}")
-    print(f"[DEBUG] LC table length: {len(lc_table)}")
-    print(f"[DEBUG] LC column: {lc_col}")
-    print(
-        f"[DEBUG] LC values: {[row.get(lc_col) for row in lc_table] if lc_col else []}"
-    )
-
-    # Get sequences for alignment, filtering out empty/None
     hc_ids = [row["sequence_id"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
     hc_seqs = [row["IGH"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
     lc_ids = [row["sequence_id"] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
     lc_seqs = [row[lc_col] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
-
-    # User-friendly labels
     hc_label_map = {orig_id: f"HC-{i+1}" for i, orig_id in enumerate(hc_ids)}
     lc_label_map = {orig_id: f"LC-{i+1}" for i, orig_id in enumerate(lc_ids)}
-
-    # Compute alignments or use original sequences if too few
     hc_alignment, hc_consensus, hc_match_matrix = compute_alignment_and_consensus(
         hc_seqs, hc_ids
     )
     lc_alignment, lc_consensus, lc_match_matrix = compute_alignment_and_consensus(
         lc_seqs, lc_ids
     )
-
-    # --- Germline and annotation rows for HC ---
     species = project.species
     germ_anno = get_germline_and_annotation(hc_gene, species, 'hc')
     hc_json = []
@@ -348,8 +314,6 @@ async def hc_lc_detail(
     ])
     if hc_consensus:
         hc_json.append({"name": "Consensus", "seq": hc_consensus})
-
-    # --- Germline and annotation rows for LC ---
     lc_region_blocks = None
     germ_anno_lc = get_germline_and_annotation(lc_gene, species, 'lc')
     lc_json = []
@@ -366,10 +330,37 @@ async def hc_lc_detail(
     ])
     if lc_consensus:
         lc_json.append({"name": "Consensus", "seq": lc_consensus})
+    return JSONResponse(content={
+        "hc_table": hc_table,
+        "lc_table": lc_table,
+        "hc_alignment": hc_alignment,
+        "hc_consensus": hc_consensus,
+        "hc_match_matrix": hc_match_matrix,
+        "lc_alignment": lc_alignment,
+        "lc_consensus": lc_consensus,
+        "lc_match_matrix": lc_match_matrix,
+        "hc_json": hc_json,
+        "lc_json": lc_json,
+        "hc_label_map": hc_label_map,
+        "lc_label_map": lc_label_map,
+        "hc_region_blocks": hc_region_blocks,
+        "lc_region_blocks": lc_region_blocks
+    })
 
-    print(f"[DEBUG] HC JSON length: {len(hc_json)}")
-    print(f"[DEBUG] LC JSON length: {len(lc_json)}")
 
+@router.get(
+    "/hc_lc_detail/{project_id}/{hc_gene}/{lc_gene}",
+    response_class=HTMLResponse,
+    name="analyze.hc_lc_detail",
+)
+async def hc_lc_detail(
+    request: Request,
+    project_id: int,
+    hc_gene: str,
+    lc_gene: str,
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
     return templates.TemplateResponse(
         "analyze/hc_lc_detail.html",
         get_template_context(
@@ -378,20 +369,6 @@ async def hc_lc_detail(
             project_id=project_id,
             hc_gene=hc_gene,
             lc_gene=lc_gene,
-            hc_table=hc_table,
-            lc_table=lc_table,
-            hc_alignment=hc_alignment,
-            hc_consensus=hc_consensus,
-            hc_match_matrix=hc_match_matrix,
-            lc_alignment=lc_alignment,
-            lc_consensus=lc_consensus,
-            lc_match_matrix=lc_match_matrix,
-            hc_json=hc_json,
-            lc_json=lc_json,
-            hc_label_map=hc_label_map,
-            lc_label_map=lc_label_map,
-            hc_region_blocks=hc_region_blocks,
-            lc_region_blocks=lc_region_blocks,
             active_tab="hc_lc_detail",
         ),
     )
