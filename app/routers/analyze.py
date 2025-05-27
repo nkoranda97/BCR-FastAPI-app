@@ -6,6 +6,8 @@ from sqlalchemy import text
 from typing import Optional
 import re
 import pandas as pd
+import os
+import json
 
 from ..database import get_db, Project
 
@@ -258,6 +260,18 @@ async def hc_lc_alignment_data(
     project: Project = Depends(get_project),
     project_data: tuple = Depends(get_project_data),
 ):
+    # --- File-based cache setup ---
+    def safe_gene(g):
+        return g.replace('/', '_').replace('*', '_').replace('|', '_').replace(' ', '_')
+    project_name = project.project_name
+    align_dir = os.path.join('instance', 'uploads', project_name, project_name, 'alignments')
+    os.makedirs(align_dir, exist_ok=True)
+    cache_file = os.path.join(align_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
+    # Try to load from cache
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            return JSONResponse(content=json.load(f))
+    # Otherwise, compute and cache
     vdj, _ = project_data
     merged = merge_data(vdj)
     filtered = merged[
@@ -330,7 +344,7 @@ async def hc_lc_alignment_data(
     ])
     if lc_consensus:
         lc_json.append({"name": "Consensus", "seq": lc_consensus})
-    return JSONResponse(content={
+    result = {
         "hc_table": hc_table,
         "lc_table": lc_table,
         "hc_alignment": hc_alignment,
@@ -345,7 +359,10 @@ async def hc_lc_alignment_data(
         "lc_label_map": lc_label_map,
         "hc_region_blocks": hc_region_blocks,
         "lc_region_blocks": lc_region_blocks
-    })
+    }
+    with open(cache_file, 'w') as f:
+        json.dump(result, f)
+    return JSONResponse(content=result)
 
 
 @router.get(
