@@ -77,10 +77,16 @@ bcr_fastAPI/
 
 2. Pull and run the container:
    ```bash
-   docker run -p 8000:8000 ghcr.io/yourusername/bcr-app:latest
+   # Pull the image
+   docker pull nkoranda/bcr-app:bcr-app
+
+   # Run the container
+   docker run -p 8000:8000 nkoranda/bcr-app:bcr-app
    ```
 
-The application will be available at the same URLs as the local development server.
+The application will be available at:
+- http://127.0.0.1:8000 (localhost)
+- http://0.0.0.0:8000 (accessible from other devices on the network)
 
 ## Local Development Server
 
