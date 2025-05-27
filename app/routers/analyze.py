@@ -47,10 +47,15 @@ async def graphs(
         }
 
     chart_data = {
+        # Heavy chain data
         'v_call': prepare_chart_data('v_call_VDJ'),
         'c_call': prepare_chart_data('c_call_VDJ'),
         'j_call': prepare_chart_data('j_call_VDJ'),
-        'isotype': prepare_chart_data('isotype')
+        'isotype': prepare_chart_data('isotype'),
+        # Light chain data
+        'lc_v_call': prepare_chart_data('v_call_VJ'),
+        'lc_c_call': prepare_chart_data('c_call_VJ'),
+        'lc_j_call': prepare_chart_data('j_call_VJ')
     }
     print(f"Debug chart_data: {chart_data}")
     return templates.TemplateResponse(
@@ -530,3 +535,54 @@ def compute_consensus(sequences):
         consensus.append(best_aa)
     
     return ''.join(consensus)
+
+@router.get("/download_data/{project_id}", response_class=HTMLResponse, name="analyze.download_data")
+async def download_data(
+    request: Request,
+    project_id: int,
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
+    """Download data page for a project."""
+    vdj, _ = project_data
+    merged = merge_data(vdj)
+    columns = merged.columns.tolist()
+    
+    return templates.TemplateResponse(
+        "analyze/download_data.html",
+        get_template_context(
+            request=request,
+            project=project,
+            project_id=project_id,
+            columns=columns,
+            active_tab="download_data",
+        ),
+    )
+
+@router.post("/download_csv/{project_id}", response_class=Response, name="analyze.download_csv")
+async def download_csv(
+    project_id: int,
+    columns: str = Form(...),
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
+    """Download selected columns as CSV."""
+    vdj, _ = project_data
+    merged = merge_data(vdj)
+    
+    # Parse selected columns
+    selected_columns = columns.split(',')
+    
+    # Filter data to selected columns
+    filtered_data = merged[selected_columns]
+    
+    # Convert to CSV
+    csv_data = filtered_data.to_csv(index=False)
+    
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{project.project_name}_data.csv"'
+        }
+    )

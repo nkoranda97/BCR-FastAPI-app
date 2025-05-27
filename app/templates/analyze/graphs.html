@@ -12,32 +12,32 @@
 
     <!-- Main Content -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Bar Charts -->
+        <!-- Heavy Chain Charts -->
         <div class="space-y-6">
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">V Gene Usage</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Heavy Chain V Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="vCallChart"></canvas>
+                    <canvas id="vCallChart1"></canvas>
                 </div>
             </div>
 
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">C Gene Usage</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Heavy Chain C Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="cCallChart"></canvas>
+                    <canvas id="cCallChart1"></canvas>
                 </div>
             </div>
 
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">J Gene Usage</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Heavy Chain J Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="jCallChart"></canvas>
+                    <canvas id="jCallChart1"></canvas>
                 </div>
             </div>
 
@@ -46,46 +46,37 @@
                     <h3 class="text-lg font-medium text-gray-900">Isotype Distribution</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="isotypeChart"></canvas>
+                    <canvas id="isotypeChart1"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- Pie Charts -->
+        <!-- Light Chain Charts -->
         <div class="space-y-6">
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">V Gene Distribution</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Light Chain V Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="vCallPieChart"></canvas>
+                    <canvas id="vCallChart2"></canvas>
                 </div>
             </div>
 
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">C Gene Distribution</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Light Chain C Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="cCallPieChart"></canvas>
+                    <canvas id="cCallChart2"></canvas>
                 </div>
             </div>
 
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">J Gene Distribution</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Light Chain J Gene Usage</h3>
                 </div>
                 <div class="p-6">
-                    <canvas id="jCallPieChart"></canvas>
-                </div>
-            </div>
-
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Isotype Distribution</h3>
-                </div>
-                <div class="p-6">
-                    <canvas id="isotypePieChart"></canvas>
+                    <canvas id="jCallChart2"></canvas>
                 </div>
             </div>
         </div>
@@ -96,8 +87,20 @@
 {% block scripts %}
 <script src="{{ url_for('static', path='js/chart.umd.min.js') }}"></script>
 <script src="{{ url_for('static', path='js/charts.js') }}"></script>
-<script type="application/javascript">
-var chartData = {{ chart_data | default({}) | tojson | safe }};
-initializeCharts(chartData);
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = {{ chart_data|tojson|safe }};
+    
+    // Create heavy chain charts
+    createBarChart('vCallChart1', chartData.v_call, 'Heavy Chain V Gene Usage', 'HC');
+    createBarChart('cCallChart1', chartData.c_call, 'Heavy Chain C Gene Usage', 'HC');
+    createBarChart('jCallChart1', chartData.j_call, 'Heavy Chain J Gene Usage', 'HC');
+    createBarChart('isotypeChart1', chartData.isotype, 'Isotype Distribution', 'HC');
+
+    // Create light chain charts
+    createBarChart('vCallChart2', chartData.lc_v_call, 'Light Chain V Gene Usage', 'LC');
+    createBarChart('cCallChart2', chartData.lc_c_call, 'Light Chain C Gene Usage', 'LC');
+    createBarChart('jCallChart2', chartData.lc_j_call, 'Light Chain J Gene Usage', 'LC');
+});
 </script>
 {% endblock %} 

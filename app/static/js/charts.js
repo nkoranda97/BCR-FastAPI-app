@@ -1,6 +1,17 @@
 // Function to create a bar chart
-function createBarChart(canvasId, data, title) {
+function createBarChart(canvasId, data, title, chain = 'HC') {
     const ctx = document.getElementById(canvasId).getContext('2d');
+    const colors = {
+        HC: {
+            background: 'rgba(54, 162, 235, 0.5)',  // Blue
+            border: 'rgba(54, 162, 235, 1)'
+        },
+        LC: {
+            background: 'rgba(255, 99, 132, 0.5)',  // Red
+            border: 'rgba(255, 99, 132, 1)'
+        }
+    };
+    
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -8,8 +19,8 @@ function createBarChart(canvasId, data, title) {
             datasets: [{
                 label: 'Count',
                 data: data.values,
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: colors[chain].background,
+                borderColor: colors[chain].border,
                 borderWidth: 1
             }]
         },
