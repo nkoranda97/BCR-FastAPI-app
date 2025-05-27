@@ -1,4 +1,3 @@
-- fix tailwind dependency call
 - clean up or add broken links
 - clean up and organize graphs
 - add more features to sequence alignment viewer

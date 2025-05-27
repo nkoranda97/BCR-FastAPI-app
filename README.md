@@ -39,6 +39,19 @@ bcr_fastAPI/
    uv run startup.py
    ```
 
+## Docker Setup
+
+1. Install Docker:
+   - For macOS: Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop)
+   - For Linux: Follow the [Docker installation guide](https://docs.docker.com/engine/install/)
+   - For Windows: Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop)
+
+2. Pull and run the container:
+   ```bash
+   docker run -p 8000:8000 ghcr.io/yourusername/bcr-app:latest
+   ```
+
+The application will be available at the same URLs as the local development server.
 
 ## Local Development Server
 
