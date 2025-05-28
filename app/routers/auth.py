@@ -48,4 +48,4 @@ def login(
 @router.get("/logout")
 def logout(request: Request):
     request.state.session.clear()
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND) 
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)

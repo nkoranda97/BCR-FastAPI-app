@@ -346,7 +346,9 @@ def lazy_classifier(gene: str) -> Optional[str]:
             return "d_call_VDJ"
         case prefix if prefix.startswith("IGHJ"):
             return "j_call_VDJ"
-        case prefix if any(prefix.startswith(x) for x in ["IGHG", "IGHA", "IGHD", "IGHE", "IGHM"]):
+        case prefix if any(
+            prefix.startswith(x) for x in ["IGHG", "IGHA", "IGHD", "IGHE", "IGHM"]
+        ):
             return "c_call_VDJ"
         case prefix if prefix.startswith("IGKV") or prefix.startswith("IGLV"):
             return "v_call_VJ"
@@ -366,35 +368,47 @@ def compute_alignment_and_consensus(seqs, ids=None):
     - match_matrix: list of bools (True if consensus, False if mismatch)
     """
     if ids is None:
-        ids = [str(i+1) for i in range(len(seqs))]
+        ids = [str(i + 1) for i in range(len(seqs))]
     filtered = [(i, s) for i, s in zip(ids, seqs) if s]
     if not filtered:
-        return [], '', []
+        return [], "", []
     ids, seqs = zip(*filtered)
     if len(seqs) < 2:
-        return list(zip(ids, seqs)), seqs[0] if seqs else '', []
+        return list(zip(ids, seqs)), seqs[0] if seqs else "", []
 
     # Write sequences to a temporary FASTA file
-    with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.fasta') as fasta_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w+", delete=False, suffix=".fasta"
+    ) as fasta_file:
         for i, seq in zip(ids, seqs):
-            fasta_file.write(f'>{i}\n{seq}\n')
+            fasta_file.write(f">{i}\n{seq}\n")
         fasta_file.flush()
         input_fasta = fasta_file.name
 
     # Prepare output file
-    with tempfile.NamedTemporaryFile(mode='r+', delete=False, suffix='.fasta') as aligned_file:
+    with tempfile.NamedTemporaryFile(
+        mode="r+", delete=False, suffix=".fasta"
+    ) as aligned_file:
         aligned_fasta = aligned_file.name
 
     # Run MUSCLE v5 with correct arguments
-    muscle_cmd = f"muscle -align {shlex.quote(input_fasta)} -output {shlex.quote(aligned_fasta)}"
+    muscle_cmd = (
+        f"muscle -align {shlex.quote(input_fasta)} -output {shlex.quote(aligned_fasta)}"
+    )
     print("MUSCLE CMD:", muscle_cmd)
     try:
-        subprocess.run(muscle_cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            muscle_cmd,
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"MUSCLE failed: {e.stderr.decode()}")
 
     # Read aligned sequences
-    alignment = AlignIO.read(aligned_fasta, 'fasta')
+    alignment = AlignIO.read(aligned_fasta, "fasta")
     align_ids = [record.id for record in alignment]
     align_strs = [str(record.seq) for record in alignment]
 
@@ -411,11 +425,13 @@ def compute_alignment_and_consensus(seqs, ids=None):
     # Optionally, cluster by similarity (as before)
     if len(align_strs) > 1:
         arr = np.array([list(s) for s in align_strs])
+
         def hamming(a, b):
             return np.sum(a != b)
+
         max_len = arr.shape[1]
         dist_vec = pdist(arr, lambda u, v: hamming(u, v) / max_len)
-        linkage_matrix = linkage(dist_vec, method='average')
+        linkage_matrix = linkage(dist_vec, method="average")
         order = leaves_list(linkage_matrix)
         align_strs = [align_strs[i] for i in order]
         align_ids = [align_ids[i] for i in order]

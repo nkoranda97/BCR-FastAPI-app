@@ -19,26 +19,25 @@ init_db()
 
 static_files = StaticFiles(directory="app/static")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Compile Tailwind CSS
     process = tailwind.compile(
         static_files.directory + "/css/output.css",
         tailwind_stylesheet_path="./app/static/css/input.css",
-        watch=True  # Enable watch mode for development
+        watch=True,  # Enable watch mode for development
     )
-    
+
     yield  # The code after this is called on shutdown
-    
+
     process.terminate()  # Terminate the compiler on shutdown
+
 
 app = FastAPI(title="BCR Analysis", lifespan=lifespan)
 
 # Add session middleware
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.secret_key
-)
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
 # Mount static files
 app.mount("/static", static_files, name="static")
@@ -60,12 +59,17 @@ app.include_router(auth.router)
 app.include_router(project_selection.router, dependencies=[Depends(auth.require_login)])
 app.include_router(analyze.router, dependencies=[Depends(auth.require_login)])
 
+
 @app.get("/", dependencies=[Depends(auth.require_login)])
 async def home(request: Request, db: Session = Depends(get_db)):
     from app.database import Project
+
     projects = db.query(Project).all()
-    return templates.TemplateResponse("select/project_list.html", {
-        "request": request,
-        "projects": projects,
-        "username": request.state.session.get("user")
-    })
+    return templates.TemplateResponse(
+        "select/project_list.html",
+        {
+            "request": request,
+            "projects": projects,
+            "username": request.state.session.get("user"),
+        },
+    )

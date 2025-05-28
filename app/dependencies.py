@@ -38,8 +38,6 @@ def get_template_context(
     active_tab: str = "graphs",
     **kwargs,
 ) -> dict:
-
-
     context = {
         "request": request,
         "project": project,
@@ -69,6 +67,6 @@ def get_project_or_404(db: Session = Depends(get_db), project_id: str = None):
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found"
+            detail=f"Project {project_id} not found",
         )
     return project

@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import json
 from starlette.datastructures import MutableHeaders
 
+
 class SessionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, secret_key: str):
         super().__init__(app)
@@ -14,7 +15,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Get session data from cookie
         session_data = self._get_session_data(request)
-        
+
         # Store session data in request state instead of directly on request
         request.state.session = session_data
 
@@ -44,7 +45,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
                 cookie_value,
                 httponly=True,
                 samesite="lax",
-                max_age=3600  # 1 hour
+                max_age=3600,  # 1 hour
             )
         else:
-            response.delete_cookie(self.session_cookie) 
+            response.delete_cookie(self.session_cookie)

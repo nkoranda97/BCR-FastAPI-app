@@ -1,3 +1,3 @@
 """
 BCR Analysis FastAPI application.
-""" 
+"""
