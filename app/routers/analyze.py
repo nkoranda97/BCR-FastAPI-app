@@ -4,7 +4,7 @@ from fastapi import Response as FastAPIResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Optional
+from typing import Optional, Dict
 import re
 import pandas as pd
 import os
@@ -33,6 +33,32 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 templates = Jinja2Templates(directory="app/templates")
 
+# Track alignment computation status
+alignment_status: Dict[str, Dict] = {}
+
+def get_alignment_key(project_name: str, hc_gene: str, lc_gene: str) -> str:
+    """Generate a unique key for alignment status tracking."""
+    return f"{project_name}_{hc_gene}_{lc_gene}"
+
+def safe_gene(g: str) -> str:
+    """Convert gene name to safe filename."""
+    return g.replace('/', '_').replace('*', '_').replace('|', '_').replace(' ', '_')
+
+@router.get(
+    "/alignment_status/{project_id}/{hc_gene}/{lc_gene}",
+    response_class=JSONResponse,
+    name="analyze.alignment_status"
+)
+async def get_alignment_status(
+    project_id: int,
+    hc_gene: str,
+    lc_gene: str,
+    project: Project = Depends(get_project),
+):
+    """Get the status of alignment computation."""
+    key = get_alignment_key(project.project_name, hc_gene, lc_gene)
+    status = alignment_status.get(key, {"status": "not_started"})
+    return JSONResponse(content=status)
 
 @router.get("/graphs/{project_id}", response_class=HTMLResponse, name="analyze.graphs")
 async def graphs(
@@ -117,110 +143,135 @@ async def hc_lc_alignment_data(
     project: Project = Depends(get_project),
     project_data: tuple = Depends(get_project_data),
 ):
-    # --- File-based cache setup ---
-    def safe_gene(g):
-        return g.replace('/', '_').replace('*', '_').replace('|', '_').replace(' ', '_')
-    project_name = project.project_name
-    align_dir = os.path.join('instance', 'uploads', project_name, project_name, 'alignments')
-    os.makedirs(align_dir, exist_ok=True)
-    cache_file = os.path.join(align_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
-    # Try to load from cache
-    if os.path.exists(cache_file):
-        with open(cache_file, 'r') as f:
-            return JSONResponse(content=json.load(f))
-    # Otherwise, compute and cache
-    vdj, _ = project_data
-    merged = merge_data(vdj)
-    filtered = merged[
-        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
-    ].copy()
-    for col in ("IGH", "IGK", "IGL"):
-        filtered[col] = filtered[col].apply(best_translation)
-    hc_table = (
-        filtered[filtered["locus_VDJ"] == "IGH"][
-            ["IGH", "sequence_id", "isotype", "clone_id"]
-        ]
-        .drop_duplicates()
-        .to_dict(orient="records")
-    )
-    if lc_gene.startswith("IGK"):
-        lc_col = "IGK"
-    elif lc_gene.startswith("IGL"):
-        lc_col = "IGL"
-    else:
-        lc_col = None
-    lc_table = (
-        filtered[[lc_col, "sequence_id", "isotype", "clone_id"]]
-        .drop_duplicates()
-        .to_dict(orient="records")
-        if lc_col
-        else []
-    )
-    hc_ids = [row["sequence_id"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
-    hc_seqs = [row["IGH"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
-    lc_ids = [row["sequence_id"] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
-    lc_seqs = [row[lc_col] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
-    hc_label_map = {orig_id: f"HC-{i+1}" for i, orig_id in enumerate(hc_ids)}
-    lc_label_map = {orig_id: f"LC-{i+1}" for i, orig_id in enumerate(lc_ids)}
-    hc_alignment, hc_consensus, hc_match_matrix = compute_alignment_and_consensus(
-        hc_seqs, hc_ids
-    )
-    lc_alignment, lc_consensus, lc_match_matrix = compute_alignment_and_consensus(
-        lc_seqs, lc_ids
-    )
-    species = project.species
-    germ_anno = get_germline_and_annotation(hc_gene, species, 'hc')
-    hc_json = []
-    hc_region_blocks = None
-    if germ_anno:
-        germ_seq, region_arr, region_blocks = germ_anno
-        hc_region_blocks = region_blocks
-        if region_arr:
-            region_str = ''.join(region_arr)
-            hc_json.append({"name": "Region", "seq": region_str})
-        hc_json.append({"name": "Germline", "seq": germ_seq})
-    hc_json.extend([
-        {"name": hc_label_map[orig_id], "seq": seq}
-        for orig_id, seq in hc_alignment
-    ])
-    if hc_consensus:
-        hc_json.append({"name": "Consensus", "seq": hc_consensus})
-    lc_region_blocks = None
-    germ_anno_lc = get_germline_and_annotation(lc_gene, species, 'lc')
-    lc_json = []
-    if germ_anno_lc:
-        lc_seq, lc_region_arr, lc_blocks = germ_anno_lc
-        lc_region_blocks = lc_blocks
-        if lc_region_arr:
-            region_str = ''.join(lc_region_arr)
-            lc_json.append({"name": "Region", "seq": region_str})
-        lc_json.append({"name": "Germline", "seq": lc_seq})
-    lc_json.extend([
-        {"name": lc_label_map[orig_id], "seq": seq}
-        for orig_id, seq in lc_alignment
-    ])
-    if lc_consensus:
-        lc_json.append({"name": "Consensus", "seq": lc_consensus})
-    result = {
-        "hc_table": hc_table,
-        "lc_table": lc_table,
-        "hc_alignment": hc_alignment,
-        "hc_consensus": hc_consensus,
-        "hc_match_matrix": hc_match_matrix,
-        "lc_alignment": lc_alignment,
-        "lc_consensus": lc_consensus,
-        "lc_match_matrix": lc_match_matrix,
-        "hc_json": hc_json,
-        "lc_json": lc_json,
-        "hc_label_map": hc_label_map,
-        "lc_label_map": lc_label_map,
-        "hc_region_blocks": hc_region_blocks,
-        "lc_region_blocks": lc_region_blocks
-    }
-    with open(cache_file, 'w') as f:
-        json.dump(result, f)
-    return JSONResponse(content=result)
+    """Generate and cache alignment data."""
+    key = get_alignment_key(project.project_name, hc_gene, lc_gene)
+    alignment_status[key] = {"status": "computing"}
 
+    try:
+        # --- File-based cache setup ---
+        project_name = project.project_name
+        align_dir = os.path.join('instance', 'uploads', project_name, project_name, 'alignments')
+        os.makedirs(align_dir, exist_ok=True)
+        cache_file = os.path.join(align_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
+        
+        # Try to load from cache
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                result = json.load(f)
+                alignment_status[key] = {"status": "ready"}
+                return JSONResponse(content=result)
+
+        # Otherwise, compute and cache
+        vdj, _ = project_data
+        merged = merge_data(vdj)
+        filtered = merged[
+            (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+        ].copy()
+        
+        for col in ("IGH", "IGK", "IGL"):
+            filtered[col] = filtered[col].apply(best_translation)
+            
+        hc_table = (
+            filtered[filtered["locus_VDJ"] == "IGH"][
+                ["IGH", "sequence_id", "isotype", "clone_id"]
+            ]
+            .drop_duplicates()
+            .to_dict(orient="records")
+        )
+        
+        if lc_gene.startswith("IGK"):
+            lc_col = "IGK"
+        elif lc_gene.startswith("IGL"):
+            lc_col = "IGL"
+        else:
+            lc_col = None
+            
+        lc_table = (
+            filtered[[lc_col, "sequence_id", "isotype", "clone_id"]]
+            .drop_duplicates()
+            .to_dict(orient="records")
+            if lc_col
+            else []
+        )
+        
+        hc_ids = [row["sequence_id"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
+        hc_seqs = [row["IGH"] for row in hc_table if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip()]
+        lc_ids = [row["sequence_id"] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
+        lc_seqs = [row[lc_col] for row in lc_table if lc_col and row.get(lc_col) and isinstance(row[lc_col], str) and row[lc_col].strip()]
+        
+        hc_label_map = {orig_id: f"HC-{i+1}" for i, orig_id in enumerate(hc_ids)}
+        lc_label_map = {orig_id: f"LC-{i+1}" for i, orig_id in enumerate(lc_ids)}
+        
+        hc_alignment, hc_consensus, hc_match_matrix = compute_alignment_and_consensus(
+            hc_seqs, hc_ids
+        )
+        lc_alignment, lc_consensus, lc_match_matrix = compute_alignment_and_consensus(
+            lc_seqs, lc_ids
+        )
+        
+        species = project.species
+        germ_anno = get_germline_and_annotation(hc_gene, species, 'hc')
+        hc_json = []
+        hc_region_blocks = None
+        if germ_anno:
+            germ_seq, region_arr, region_blocks = germ_anno
+            hc_region_blocks = region_blocks
+            if region_arr:
+                region_str = ''.join(region_arr)
+                hc_json.append({"name": "Region", "seq": region_str})
+            hc_json.append({"name": "Germline", "seq": germ_seq})
+            
+        hc_json.extend([
+            {"name": hc_label_map[orig_id], "seq": seq}
+            for orig_id, seq in hc_alignment
+        ])
+        if hc_consensus:
+            hc_json.append({"name": "Consensus", "seq": hc_consensus})
+            
+        lc_region_blocks = None
+        germ_anno_lc = get_germline_and_annotation(lc_gene, species, 'lc')
+        lc_json = []
+        if germ_anno_lc:
+            lc_seq, lc_region_arr, lc_blocks = germ_anno_lc
+            lc_region_blocks = lc_blocks
+            if lc_region_arr:
+                region_str = ''.join(lc_region_arr)
+                lc_json.append({"name": "Region", "seq": region_str})
+            lc_json.append({"name": "Germline", "seq": lc_seq})
+            
+        lc_json.extend([
+            {"name": lc_label_map[orig_id], "seq": seq}
+            for orig_id, seq in lc_alignment
+        ])
+        if lc_consensus:
+            lc_json.append({"name": "Consensus", "seq": lc_consensus})
+            
+        result = {
+            "hc_table": hc_table,
+            "lc_table": lc_table,
+            "hc_alignment": hc_alignment,
+            "hc_consensus": hc_consensus,
+            "hc_match_matrix": hc_match_matrix,
+            "lc_alignment": lc_alignment,
+            "lc_consensus": lc_consensus,
+            "lc_match_matrix": lc_match_matrix,
+            "hc_json": hc_json,
+            "lc_json": lc_json,
+            "hc_label_map": hc_label_map,
+            "lc_label_map": lc_label_map,
+            "hc_region_blocks": hc_region_blocks,
+            "lc_region_blocks": lc_region_blocks
+        }
+        
+        with open(cache_file, 'w') as f:
+            json.dump(result, f)
+            
+        alignment_status[key] = {"status": "ready"}
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        alignment_status[key] = {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
     "/hc_lc_detail/{project_id}/{hc_gene}/{lc_gene}",
@@ -334,40 +385,39 @@ async def phylo_tree_newick(
     lc_gene: str,
     chain: str = 'hc', # Query parameter: chain=hc or chain=lc
     project: Project = Depends(get_project),
-    # project_data: tuple = Depends(get_project_data), # Not used as data comes from cache
+    project_data: tuple = Depends(get_project_data),
 ):
     """
     Generate and return a Newick tree for the selected HC/LC gene pair using aligned sequences 
     from the alignment cache. The cache stores alignments as lists of dictionaries, e.g., 
     `hc_alignment: [{"name": "Seq1", "seq": "ACGT..."}, ...]`. This function processes this structure.
     """
-    import os
-    import json
-    from Bio import Phylo
-    from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
-    from io import StringIO
-    # safe_gene should be imported from app.utils if not already available globally in this module
-    # from app.utils import safe_gene # Ensure this import exists if safe_gene is not in module scope
-
+    key = get_alignment_key(project.project_name, hc_gene, lc_gene)
+    status = alignment_status.get(key, {"status": "not_started"})
+    
+    if status["status"] == "not_started":
+        # Start alignment computation and wait for it to complete
+        try:
+            await hc_lc_alignment_data(project_id, hc_gene, lc_gene, project, project_data)
+            status = alignment_status.get(key, {"status": "not_started"})
+        except Exception as e:
+            print(f"Error computing alignment: {e}")
+            return FastAPIResponse(content="(A,B);", media_type="text/plain")
+    
+    if status["status"] == "computing":
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+    elif status["status"] == "error":
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+    
+    # Alignment is ready, proceed with tree generation
     project_name = project.project_name
     cache_dir = os.path.join("instance", "uploads", project_name, project_name, "alignments")
-
-    def safe_gene(g: str) -> str:
-        return g.replace('/', '_').replace('*', '_').replace('|', '_').replace(' ', '_')
-
-    # Use the defined safe_gene for constructing the cache file name
-    cache_file_name = f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json"
-    cache_file_path = os.path.join(cache_dir, cache_file_name)
-
-    if not os.path.exists(cache_file_path):
-        print(f"DEBUG: Cache file not found: {cache_file_path}")
-        return FastAPIResponse(content="(A,B);", media_type="text/plain")
-
+    cache_file_path = os.path.join(cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
+    
     try:
         with open(cache_file_path, 'r') as f:
             cache_data = json.load(f)
-    except json.JSONDecodeError:
-        print(f"DEBUG: JSON decode error in cache file: {cache_file_path}")
+    except (json.JSONDecodeError, FileNotFoundError):
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
     source_alignment_list_of_dicts = []
