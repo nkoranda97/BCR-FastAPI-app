@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.16.1",
+    "biopython>=1.85",
     "fastapi-tailwind>=2.0.3a1",
     "fastapi[standard]>=0.115.12",
     "itsdangerous>=2.2.0",

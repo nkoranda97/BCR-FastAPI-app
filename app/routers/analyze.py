@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi import Response as FastAPIResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -8,6 +9,12 @@ import re
 import pandas as pd
 import os
 import json
+from Bio import Phylo
+from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.Newick import Tree as NewickTree
 
 from ..database import get_db, Project
 
@@ -315,6 +322,198 @@ async def get_lc_sequences(project_data: tuple, lc_gene: str):
             })
     
     return sequences
+
+@router.get(
+    "/phylo_tree_newick/{project_id}/{hc_gene}/{lc_gene}",
+    response_class=FastAPIResponse,
+    name="analyze.phylo_tree_newick"
+)
+async def phylo_tree_newick(
+    project_id: int,
+    hc_gene: str,
+    lc_gene: str,
+    chain: str = 'hc', # Query parameter: chain=hc or chain=lc
+    project: Project = Depends(get_project),
+    # project_data: tuple = Depends(get_project_data), # Not used as data comes from cache
+):
+    """
+    Generate and return a Newick tree for the selected HC/LC gene pair using aligned sequences 
+    from the alignment cache. The cache stores alignments as lists of dictionaries, e.g., 
+    `hc_alignment: [{"name": "Seq1", "seq": "ACGT..."}, ...]`. This function processes this structure.
+    """
+    import os
+    import json
+    from Bio import Phylo
+    from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
+    from io import StringIO
+    # safe_gene should be imported from app.utils if not already available globally in this module
+    # from app.utils import safe_gene # Ensure this import exists if safe_gene is not in module scope
+
+    project_name = project.project_name
+    cache_dir = os.path.join("instance", "uploads", project_name, project_name, "alignments")
+
+    def safe_gene(g: str) -> str:
+        return g.replace('/', '_').replace('*', '_').replace('|', '_').replace(' ', '_')
+
+    # Use the defined safe_gene for constructing the cache file name
+    cache_file_name = f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json"
+    cache_file_path = os.path.join(cache_dir, cache_file_name)
+
+    if not os.path.exists(cache_file_path):
+        print(f"DEBUG: Cache file not found: {cache_file_path}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    try:
+        with open(cache_file_path, 'r') as f:
+            cache_data = json.load(f)
+    except json.JSONDecodeError:
+        print(f"DEBUG: JSON decode error in cache file: {cache_file_path}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    source_alignment_list_of_dicts = []
+    if chain == 'lc':
+        source_alignment_list_of_dicts = cache_data.get('lc_alignment', [])
+    else: # Default to hc
+        source_alignment_list_of_dicts = cache_data.get('hc_alignment', [])
+
+    if not isinstance(source_alignment_list_of_dicts, list):
+        print(f"DEBUG: Expected list for '{chain}_alignment', got {type(source_alignment_list_of_dicts)}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    # Step 1: Extract valid (original_name, sequence_string) tuples from the list of dicts.
+    # Filter out entries like "Germline", "Consensus", "Region" by their 'name' field.
+    # Ensure 'seq' is a non-empty string.
+    valid_initial_sequences = [] # List of (original_name, sequence_string)
+    for item_list in source_alignment_list_of_dicts:
+        # Ensure item_list is a list and has exactly two elements (name, sequence)
+        if not (isinstance(item_list, list) and len(item_list) == 2):
+            # print(f"DEBUG: Skipping item, not a list of 2 elements: {item_list}") # Optional: for very detailed debugging
+            continue
+        
+        name, sequence = item_list[0], item_list[1] # Unpack name and sequence
+        
+        # Filter by name and ensure sequence is a non-empty string
+        if isinstance(name, str) and name not in ("Germline", "Consensus", "Region") and \
+           isinstance(sequence, str) and sequence:
+            valid_initial_sequences.append((name, sequence))
+        # else: # Optional: for very detailed debugging
+            # print(f"DEBUG: Skipping item due to name/sequence content: Name='{name}', Seq='{sequence[:10]}...' ({type(name)}, {type(sequence)})")
+
+    # Step 2: Create new labels (e.g., "HC-1", "LC-1") for the valid sequences.
+    labelled_sequences_for_tree = [] # List of (new_label, sequence_string)
+    label_prefix = "LC" if chain == 'lc' else "HC"
+    for i, (original_name, seq_str) in enumerate(valid_initial_sequences):
+        labelled_sequences_for_tree.append((f"{label_prefix}-{i+1}", seq_str))
+
+    # Step 3: Filter for unique sequences (based on sequence string), keeping the generated label.
+    seen_sequence_strings = set()
+    final_sequences_for_matrix = [] # List of (label, sequence_string)
+    for label, sequence_string in labelled_sequences_for_tree:
+        if sequence_string in seen_sequence_strings:
+            continue # Skip duplicate sequence string
+        seen_sequence_strings.add(sequence_string)
+        final_sequences_for_matrix.append((label, sequence_string))
+
+    if len(final_sequences_for_matrix) < 2:
+        print(f"DEBUG: Detailed trace for chain '{chain}':")
+        print(f"DEBUG:   Source alignment data (from cache): {source_alignment_list_of_dicts}")
+        print(f"DEBUG:   Valid initial sequences (after name/empty filter): {valid_initial_sequences}")
+        print(f"DEBUG:   Labelled sequences for tree (with HC/LC prefix): {labelled_sequences_for_tree}")
+        print(f"DEBUG:   Final sequences for matrix (after unique string filter): {final_sequences_for_matrix}")
+        print(f"DEBUG: Not enough unique, valid sequences after filtering for chain '{chain}'. Count: {len(final_sequences_for_matrix)}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    # Step 4: Ensure all sequences for the matrix are the same length and not zero-length.
+    sequence_lengths = set(len(seq_str) for label, seq_str in final_sequences_for_matrix)
+    if len(sequence_lengths) != 1:
+        print(f"DEBUG: Sequence lengths not uniform for chain '{chain}': {sequence_lengths}. Sequences: {final_sequences_for_matrix}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+    
+    current_seq_length = list(sequence_lengths)[0]
+    if current_seq_length == 0:
+        print(f"DEBUG: All sequences have length 0 for chain '{chain}'.")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    # Step 5: Prepare for DistanceMatrix: list of labels, and lower-triangular matrix of distances.
+    matrix_labels = [label for label, seq_str in final_sequences_for_matrix]
+    matrix_sequence_strings = [seq_str for label, seq_str in final_sequences_for_matrix]
+    num_sequences = len(matrix_sequence_strings)
+    
+    distance_matrix_rows = []
+    for i in range(num_sequences):
+        current_row = [] # Row i for the lower-triangular matrix
+        for j in range(i): # Columns 0 to i-1
+            seq1_str = matrix_sequence_strings[i]
+            seq2_str = matrix_sequence_strings[j]
+            
+            # Normalized Hamming distance: 1 - (matches / length)
+            matches = sum(aa1 == aa2 for aa1, aa2 in zip(seq1_str, seq2_str))
+            dist = 1.0 - (matches / current_seq_length) # current_seq_length is uniform and non-zero
+            current_row.append(dist)
+        distance_matrix_rows.append(current_row)
+
+    # --- STRICT lower-triangular matrix for Biopython ---
+    n_labels = len(matrix_labels)
+    # Build lower-triangular distance matrix: for n labels, n rows, row i has i elements
+    strict_matrix = []
+    for i in range(n_labels):
+        row = []
+        for j in range(i):
+            seq1 = matrix_sequence_strings[i]
+            seq2 = matrix_sequence_strings[j]
+            matches = sum(aa1 == aa2 for aa1, aa2 in zip(seq1, seq2))
+            dist = 1.0 - (matches / current_seq_length)
+            row.append(float(dist))
+        strict_matrix.append(row)
+    distance_matrix_rows = strict_matrix
+    # Assert correct shape
+    assert len(distance_matrix_rows) == n_labels, f"Distance matrix rows {len(distance_matrix_rows)} != #labels {n_labels}"
+    for i, row in enumerate(distance_matrix_rows):
+        assert len(row) == i, f"Row {i} length {len(row)} != {i}"
+    # Ensure all labels are strings and all values are floats
+    matrix_labels = [str(l) for l in matrix_labels]
+    # --- SIMPLIFIED PHYLOGENY USING BIOPYTHON WIKI EXAMPLE ---
+    from Bio.Seq import Seq
+    from Bio.SeqRecord import SeqRecord
+    from Bio.Align import MultipleSeqAlignment
+    from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+    from io import StringIO
+    from Bio import Phylo
+
+    try:
+        alignment = MultipleSeqAlignment([
+            SeqRecord(Seq(seq), id=label)
+            for label, seq in final_sequences_for_matrix
+        ])
+        if len(alignment) < 2:
+            print(f"Not enough sequences for tree. Returning dummy tree.")
+            return FastAPIResponse(content="(A,B);", media_type="text/plain")
+        calculator = DistanceCalculator('identity')
+        dm = calculator.get_distance(alignment)
+        constructor = DistanceTreeConstructor()
+        tree = constructor.nj(dm)
+        handle = StringIO()
+        Phylo.write(tree, handle, "newick")
+        newick_tree_string = handle.getvalue().strip()
+        if not newick_tree_string or newick_tree_string == "();":
+            print(f"DEBUG: Biopython produced trivial tree for chain '{chain}': '{newick_tree_string}'")
+            return FastAPIResponse(content="(A,B);", media_type="text/plain")
+        return FastAPIResponse(content=newick_tree_string, media_type="text/plain")
+    except Exception as e:
+        print(f"ERROR constructing tree for chain '{chain}': {e}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+    except ValueError as e: # Catch errors from DistanceMatrix or tree construction (e.g., matrix format)
+        # Log the error along with the data that was passed to DistanceMatrix
+        # matrix_for_biopython should be defined here if the error is from DistanceMatrix itself.
+        # If the error was before its assignment (unlikely for this specific error), it falls back to distance_matrix_rows.
+        print(f"ERROR constructing DistanceMatrix/Tree for chain '{chain}': {e}.")
+        print(f"ERROR constructing DistanceMatrix/Tree for chain '{chain}': {e}. Labels: {matrix_labels}, Matrix PASSED to Biopython: {matrix_logged}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
+    except Exception as e: # Catch any other unexpected errors during tree construction
+        matrix_logged = matrix_for_biopython if 'matrix_for_biopython' in locals() else distance_matrix_rows
+        print(f"UNEXPECTED ERROR during tree construction for chain '{chain}': {e}. Labels: {matrix_labels}, Matrix: {matrix_logged}")
+        return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
 @router.get(
     "/download_fasta/{project_id}/{hc_gene}/{lc_gene}/{chain_type}",

@@ -8,3 +8,5 @@
 - impliment logo plots in some way
 - the .env probably shouldn't be included in the container? Figure out a way to impliment this better
 - make sure ADATA route can't go anywhere right now and just say "upcoming feature" or something.
+- tree and id matrix for a given HC LC pairing
+- highlight rows in MSA
