@@ -4,6 +4,7 @@
 {{ super() }}
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="/static/js/phylogenetic-tree.js"></script>
+<script src="/static/js/distance-matrix-canvas.js"></script>
 {% endblock %}
 
 {% block analyze_content %}
@@ -34,6 +35,9 @@
         <button id="tab-tree"
           class="tab-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-blue-700 border-b-2 border-transparent hover:border-blue-300 focus:outline-none"
           data-tab="tree">Phylogenetic Tree</button>
+        <button id="tab-distance"
+          class="tab-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-blue-700 border-b-2 border-transparent hover:border-blue-300 focus:outline-none"
+          data-tab="distance">Distance Matrix</button>
       </nav>
     </div>
 
@@ -117,6 +121,35 @@
         </div>
       </div>
     </div>
+
+    <div id="distance-card" style="display:none">
+      <div class="rounded-lg shadow border border-slate-200 bg-white p-6 space-y-4 overflow-hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xl font-semibold">Sequence Distance Matrix</h2>
+          <div class="flex items-center space-x-2">
+            <button id="download-distance-svg"
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
+              title="Download Matrix as SVG" aria-label="Download Matrix as SVG" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-1 align-middle" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download SVG (Not available for large matrices)
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto w-full border border-slate-200 rounded">
+          <div id="distance-matrix-container" style="position:relative; min-height:500px;" class="relative w-full xl:h-[700px] lg:h-[600px] h-[500px] bg-gray-50 rounded-md">
+            <div id="distance-matrix-loading" class="flex flex-col items-center justify-center p-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <div class="loader mb-2"></div>
+              <div class="text-gray-500 text-center">Loading distance matrix...</div>
+            </div>
+            <div id="distance-matrix-error" class="text-red-500 p-4 text-center hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -130,28 +163,42 @@
   function setActiveTab(tab) {
     const alignBtn = document.getElementById('tab-align');
     const treeBtn = document.getElementById('tab-tree');
+    const distanceBtn = document.getElementById('tab-distance');
     const alignCards = document.getElementById('align-cards');
     const treeCard = document.getElementById('tree-card');
+    const distanceCard = document.getElementById('distance-card');
+
+    // Reset all buttons
+    [alignBtn, treeBtn, distanceBtn].forEach(btn => {
+      btn.classList.remove('text-blue-700', 'border-blue-700');
+      btn.classList.add('text-gray-500', 'border-transparent');
+    });
+
+    // Hide all cards
+    [alignCards, treeCard, distanceCard].forEach(card => {
+      card.style.display = 'none';
+    });
+
+    // Activate selected tab
     if (tab === 'align') {
       alignBtn.classList.add('text-blue-700', 'border-blue-700');
       alignBtn.classList.remove('text-gray-500', 'border-transparent');
-      treeBtn.classList.remove('text-blue-700', 'border-blue-700');
-      treeBtn.classList.add('text-gray-500', 'border-transparent');
       alignCards.style.display = '';
-      treeCard.style.display = 'none';
-    } else {
+    } else if (tab === 'tree') {
       treeBtn.classList.add('text-blue-700', 'border-blue-700');
       treeBtn.classList.remove('text-gray-500', 'border-transparent');
-      alignBtn.classList.remove('text-blue-700', 'border-blue-700');
-      alignBtn.classList.add('text-gray-500', 'border-transparent');
-      alignCards.style.display = 'none';
       treeCard.style.display = '';
+    } else if (tab === 'distance') {
+      distanceBtn.classList.add('text-blue-700', 'border-blue-700');
+      distanceBtn.classList.remove('text-gray-500', 'border-transparent');
+      distanceCard.style.display = '';
     }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('tab-align').addEventListener('click', function () { setActiveTab('align'); });
     document.getElementById('tab-tree').addEventListener('click', function () { setActiveTab('tree'); });
+    document.getElementById('tab-distance').addEventListener('click', function () { setActiveTab('distance'); });
     setActiveTab('align');
 
     // Initialize phylogenetic tree
@@ -282,6 +329,69 @@
         lcContainer.innerHTML = '<p class="text-red-500 p-4 text-center">Error loading Light-chain alignment data.</p>';
       });
     // --- END OF UNCHANGED MSA SCRIPT ---
+
+    // Initialize distance matrix (canvas version)
+    const distanceContainer = document.getElementById('distance-matrix-container');
+    const distanceLoading = document.getElementById('distance-matrix-loading');
+    const distanceError = document.getElementById('distance-matrix-error');
+    const downloadDistanceSVGButton = document.getElementById('download-distance-svg');
+
+    let distanceMatrix = null;
+
+    // Disable SVG export for canvas version
+    downloadDistanceSVGButton.disabled = true;
+    downloadDistanceSVGButton.addEventListener('click', () => {
+      alert('SVG export is not supported for the canvas version.');
+    });
+
+    // Function to load distance matrix data
+    async function loadDistanceMatrix(chain = 'hc') {
+      try {
+        distanceLoading.style.display = '';
+        distanceError.style.display = 'none';
+        
+        const response = await fetch(`/analyze/distance_matrix/${projectId}/${encodeURIComponent(hcGene)}/${encodeURIComponent(lcGene)}?chain=${chain}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch distance matrix: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Initialize matrix if not already done
+        if (!distanceMatrix) {
+          // Use ResizeObserver to wait for the container to have a nonzero size
+          const observer = new ResizeObserver(entries => {
+            const entry = entries[0];
+            const width = entry.contentRect.width;
+            const height = entry.contentRect.height;
+            if (width > 0 && height > 0) {
+              distanceMatrix = new DistanceMatrixCanvas('distance-matrix-container', {
+                width: width,
+                height: height
+              });
+              distanceMatrix.update(data);
+              observer.disconnect();
+            }
+          });
+          observer.observe(distanceContainer);
+        } else {
+          distanceMatrix.update(data);
+        }
+        distanceLoading.style.display = 'none';
+      } catch (err) {
+        console.error("Distance Matrix Error:", err);
+        distanceLoading.style.display = 'none';
+        distanceError.style.display = '';
+        distanceError.innerText = `Error loading distance matrix: ${err.message}. Please check server logs or try again.`;
+      }
+    }
+
+    // Add event listener for distance matrix tab
+    document.getElementById('tab-distance').addEventListener('click', function() {
+      if (!distanceMatrix) {
+        loadDistanceMatrix();
+      }
+    });
   });
 </script>
 

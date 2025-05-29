@@ -16,6 +16,10 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.Newick import Tree as NewickTree
 
+from Bio import AlignIO
+import numpy as np
+from scipy.spatial.distance import pdist, squareform
+
 from ..database import get_db, Project
 
 from ..services.ddl import (
@@ -758,3 +762,123 @@ async def download_csv(
             "Content-Disposition": f'attachment; filename="{project.project_name}_data.csv"'
         },
     )
+
+
+@router.get(
+    "/distance_matrix/{project_id}/{hc_gene}/{lc_gene}",
+    response_class=JSONResponse,
+    name="analyze.distance_matrix",
+)
+async def distance_matrix(
+    project_id: int,
+    hc_gene: str,
+    lc_gene: str,
+    chain: str = "hc",  # Query parameter: chain=hc or chain=lc
+    project: Project = Depends(get_project),
+    project_data: tuple = Depends(get_project_data),
+):
+    """Generate a distance matrix for sequences using cached alignment data."""
+    try:
+        # Get the alignment key and check status
+        key = get_alignment_key(project.project_name, hc_gene, lc_gene)
+        status = alignment_status.get(key, {"status": "not_started"})
+
+        if status["status"] == "not_started":
+            # Start alignment computation and wait for it to complete
+            try:
+                await hc_lc_alignment_data(
+                    project_id, hc_gene, lc_gene, project, project_data
+                )
+                status = alignment_status.get(key, {"status": "not_started"})
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": f"Error computing alignment: {str(e)}"},
+                )
+
+        if status["status"] == "computing":
+            return JSONResponse(
+                status_code=202,
+                content={"status": "computing", "message": "Alignment computation in progress"},
+            )
+        elif status["status"] == "error":
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Error in alignment computation: {status.get('message', 'Unknown error')}"},
+            )
+
+        # Load cached alignment data
+        project_name = project.project_name
+        cache_dir = os.path.join(
+            "instance", "uploads", project_name, project_name, "alignments"
+        )
+        cache_file = os.path.join(
+            cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json"
+        )
+
+        try:
+            with open(cache_file, "r") as f:
+                cache_data = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Alignment cache not found"},
+            )
+
+        # Get the appropriate alignment data based on chain type
+        if chain == "hc":
+            alignment_data = cache_data.get("hc_alignment", [])
+            label_map = cache_data.get("hc_label_map", {})
+        else:
+            alignment_data = cache_data.get("lc_alignment", [])
+            label_map = cache_data.get("lc_label_map", {})
+
+        if not alignment_data:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"No alignment data found for {chain.upper()} chain"},
+            )
+
+        # Convert alignment data to sequences
+        sequences = []
+        for orig_id, seq in alignment_data:
+            if orig_id in label_map:
+                sequences.append((label_map[orig_id], seq))
+
+        if len(sequences) < 2:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Not enough sequences for {chain.upper()} chain"},
+            )
+
+        # Calculate distance matrix
+        n_seqs = len(sequences)
+        distances = np.zeros((n_seqs, n_seqs))
+        
+        for i in range(n_seqs):
+            for j in range(i + 1, n_seqs):
+                # Calculate percentage of mismatches
+                seq1 = sequences[i][1]
+                seq2 = sequences[j][1]
+                mismatches = sum(1 for a, b in zip(seq1, seq2) if a != b and a != '-' and b != '-')
+                total = sum(1 for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+                distance = (mismatches / total) * 100 if total > 0 else 0
+                distances[i, j] = distance
+                distances[j, i] = distance
+
+        # Prepare response data
+        labels = [seq[0] for seq in sequences]  # Use the mapped labels
+        matrix_data = distances.tolist()
+
+        return JSONResponse(
+            content={
+                "labels": labels,
+                "matrix": matrix_data
+            }
+        )
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error generating distance matrix: {str(e)}"},
+        )
