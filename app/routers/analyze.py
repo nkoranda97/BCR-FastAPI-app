@@ -38,6 +38,9 @@ from ..dependencies import (
 from ..schemas.forms import GeneSelect
 from app.services.germline_annotation import get_germline_and_annotation
 
+import subprocess
+from io import StringIO
+
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 templates = Jinja2Templates(directory="app/templates")
@@ -369,45 +372,47 @@ async def gene_explorer(
     )
 
 
-async def get_hc_sequences(project_data: tuple, hc_gene: str):
-    """Get heavy chain sequences for a project and gene."""
+async def get_hc_sequences(project_data: tuple, hc_gene: str, lc_gene: str):
+    """Get heavy chain sequences for a project and gene pair."""
     vdj, _ = project_data
     merged = merge_data(vdj)
 
-    # Filter for the HC gene and translate
+    # Filter for the HC/LC gene pair and translate
     filtered = merged[
-        (merged["v_call_VDJ"] == hc_gene) & (merged["locus_VDJ"] == "IGH")
+        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
     ].copy()
 
     filtered["IGH"] = filtered["IGH"].apply(best_translation)
 
-    # Convert to list of dicts
+    # Convert to list of dicts, using the same labeling scheme as alignment data
     sequences = []
-    for _, row in filtered.drop_duplicates(subset=["sequence_id"]).iterrows():
+    for i, (_, row) in enumerate(filtered.drop_duplicates(subset=["sequence_id"]).iterrows()):
         if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip():
-            sequences.append({"name": f"HC-{len(sequences) + 1}", "seq": row["IGH"]})
+            sequences.append({"name": f"HC-{i + 1}", "seq": row["IGH"]})
 
     return sequences
 
 
-async def get_lc_sequences(project_data: tuple, lc_gene: str):
-    """Get light chain sequences for a project and gene."""
+async def get_lc_sequences(project_data: tuple, hc_gene: str, lc_gene: str):
+    """Get light chain sequences for a project and gene pair."""
     vdj, _ = project_data
     merged = merge_data(vdj)
 
     # Determine LC column based on gene prefix
     lc_col = "IGK" if lc_gene.startswith("IGK") else "IGL"
 
-    # Filter for the LC gene and translate
-    filtered = merged[(merged["v_call_VJ"] == lc_gene)].copy()
+    # Filter for the HC/LC gene pair and translate
+    filtered = merged[
+        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+    ].copy()
 
     filtered[lc_col] = filtered[lc_col].apply(best_translation)
 
-    # Convert to list of dicts
+    # Convert to list of dicts, using the same labeling scheme as alignment data
     sequences = []
-    for _, row in filtered.drop_duplicates(subset=["sequence_id"]).iterrows():
+    for i, (_, row) in enumerate(filtered.drop_duplicates(subset=["sequence_id"]).iterrows()):
         if row[lc_col] and isinstance(row[lc_col], str) and row[lc_col].strip():
-            sequences.append({"name": f"LC-{len(sequences) + 1}", "seq": row[lc_col]})
+            sequences.append({"name": f"LC-{i + 1}", "seq": row[lc_col]})
 
     return sequences
 
@@ -425,38 +430,23 @@ async def phylo_tree_newick(
     project: Project = Depends(get_project),
     project_data: tuple = Depends(get_project_data),
 ):
-    """
-    Generate and return a Newick tree for the selected HC/LC gene pair using aligned sequences
-    from the alignment cache. The cache stores alignments as lists of dictionaries, e.g.,
-    `hc_alignment: [{"name": "Seq1", "seq": "ACGT..."}, ...]`. This function processes this structure.
-    """
+    """Generate and return a Newick tree for the selected HC/LC gene pair using aligned sequences."""
     key = get_alignment_key(project.project_name, hc_gene, lc_gene)
     status = alignment_status.get(key, {"status": "not_started"})
 
     if status["status"] == "not_started":
-        # Start alignment computation and wait for it to complete
         try:
-            await hc_lc_alignment_data(
-                project_id, hc_gene, lc_gene, project, project_data
-            )
+            await hc_lc_alignment_data(project_id, hc_gene, lc_gene, project, project_data)
             status = alignment_status.get(key, {"status": "not_started"})
-        except Exception as e:
-            print(f"Error computing alignment: {e}")
+        except Exception:
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    if status["status"] == "computing":
-        return FastAPIResponse(content="(A,B);", media_type="text/plain")
-    elif status["status"] == "error":
+    if status["status"] != "ready":
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    # Alignment is ready, proceed with tree generation
     project_name = project.project_name
-    cache_dir = os.path.join(
-        "instance", "uploads", project_name, project_name, "alignments"
-    )
-    cache_file_path = os.path.join(
-        cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json"
-    )
+    cache_dir = os.path.join("instance", "uploads", project_name, project_name, "alignments")
+    cache_file_path = os.path.join(cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
 
     try:
         with open(cache_file_path, "r") as f:
@@ -465,131 +455,40 @@ async def phylo_tree_newick(
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
     source_alignment_list_of_dicts = []
+    label_map = {}
     if chain == "lc":
         source_alignment_list_of_dicts = cache_data.get("lc_alignment", [])
-    else:  # Default to hc
+        label_map = cache_data.get("lc_label_map", {})
+    else:
         source_alignment_list_of_dicts = cache_data.get("hc_alignment", [])
+        label_map = cache_data.get("hc_label_map", {})
 
     if not isinstance(source_alignment_list_of_dicts, list):
-        print(
-            f"DEBUG: Expected list for '{chain}_alignment', got {type(source_alignment_list_of_dicts)}"
-        )
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    # Step 1: Extract valid (original_name, sequence_string) tuples from the list of dicts.
-    # Filter out entries like "Germline", "Consensus", "Region" by their 'name' field.
-    # Ensure 'seq' is a non-empty string.
-    valid_initial_sequences = []  # List of (original_name, sequence_string)
+    valid_initial_sequences = []
     for item_list in source_alignment_list_of_dicts:
-        # Ensure item_list is a list and has exactly two elements (name, sequence)
         if not (isinstance(item_list, list) and len(item_list) == 2):
-            # print(f"DEBUG: Skipping item, not a list of 2 elements: {item_list}") # Optional: for very detailed debugging
             continue
 
-        name, sequence = item_list[0], item_list[1]  # Unpack name and sequence
+        name, sequence = item_list[0], item_list[1]
 
-        # Filter by name and ensure sequence is a non-empty string
-        if (
-            isinstance(name, str)
-            and name not in ("Germline", "Consensus", "Region")
-            and isinstance(sequence, str)
-            and sequence
-        ):
+        if (isinstance(name, str) and name not in ("Germline", "Consensus", "Region") 
+            and isinstance(sequence, str) and sequence):
             valid_initial_sequences.append((name, sequence))
-        # else: # Optional: for very detailed debugging
-        # print(f"DEBUG: Skipping item due to name/sequence content: Name='{name}', Seq='{sequence[:10]}...' ({type(name)}, {type(sequence)})")
 
-    # Step 2: Create new labels (e.g., "HC-1", "LC-1") for the valid sequences.
-    labelled_sequences_for_tree = []  # List of (new_label, sequence_string)
-    label_prefix = "LC" if chain == "lc" else "HC"
-    for i, (original_name, seq_str) in enumerate(valid_initial_sequences):
-        labelled_sequences_for_tree.append((f"{label_prefix}-{i + 1}", seq_str))
+    labelled_sequences_for_tree = []
+    for original_name, seq_str in valid_initial_sequences:
+        if original_name in label_map:
+            labelled_sequences_for_tree.append((label_map[original_name], seq_str))
 
-    # Step 3: Filter for unique sequences (based on sequence string), keeping the generated label.
-    seen_sequence_strings = set()
-    final_sequences_for_matrix = []  # List of (label, sequence_string)
-    for label, sequence_string in labelled_sequences_for_tree:
-        if sequence_string in seen_sequence_strings:
-            continue  # Skip duplicate sequence string
-        seen_sequence_strings.add(sequence_string)
-        final_sequences_for_matrix.append((label, sequence_string))
-
-    if len(final_sequences_for_matrix) < 2:
-        print(f"DEBUG: Detailed trace for chain '{chain}':")
-        print(
-            f"DEBUG:   Source alignment data (from cache): {source_alignment_list_of_dicts}"
-        )
-        print(
-            f"DEBUG:   Valid initial sequences (after name/empty filter): {valid_initial_sequences}"
-        )
-        print(
-            f"DEBUG:   Labelled sequences for tree (with HC/LC prefix): {labelled_sequences_for_tree}"
-        )
-        print(
-            f"DEBUG:   Final sequences for matrix (after unique string filter): {final_sequences_for_matrix}"
-        )
-        print(
-            f"DEBUG: Not enough unique, valid sequences after filtering for chain '{chain}'. Count: {len(final_sequences_for_matrix)}"
-        )
+    if len(labelled_sequences_for_tree) < 2:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    # Step 4: Ensure all sequences for the matrix are the same length and not zero-length.
-    sequence_lengths = set(
-        len(seq_str) for label, seq_str in final_sequences_for_matrix
-    )
-    if len(sequence_lengths) != 1:
-        print(
-            f"DEBUG: Sequence lengths not uniform for chain '{chain}': {sequence_lengths}. Sequences: {final_sequences_for_matrix}"
-        )
+    sequence_lengths = set(len(seq_str) for label, seq_str in labelled_sequences_for_tree)
+    if len(sequence_lengths) != 1 or list(sequence_lengths)[0] == 0:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    current_seq_length = list(sequence_lengths)[0]
-    if current_seq_length == 0:
-        print(f"DEBUG: All sequences have length 0 for chain '{chain}'.")
-        return FastAPIResponse(content="(A,B);", media_type="text/plain")
-
-    # Step 5: Prepare for DistanceMatrix: list of labels, and lower-triangular matrix of distances.
-    matrix_labels = [label for label, seq_str in final_sequences_for_matrix]
-    matrix_sequence_strings = [seq_str for label, seq_str in final_sequences_for_matrix]
-    num_sequences = len(matrix_sequence_strings)
-
-    distance_matrix_rows = []
-    for i in range(num_sequences):
-        current_row = []  # Row i for the lower-triangular matrix
-        for j in range(i):  # Columns 0 to i-1
-            seq1_str = matrix_sequence_strings[i]
-            seq2_str = matrix_sequence_strings[j]
-
-            # Normalized Hamming distance: 1 - (matches / length)
-            matches = sum(aa1 == aa2 for aa1, aa2 in zip(seq1_str, seq2_str))
-            dist = 1.0 - (
-                matches / current_seq_length
-            )  # current_seq_length is uniform and non-zero
-            current_row.append(dist)
-        distance_matrix_rows.append(current_row)
-
-    # --- STRICT lower-triangular matrix for Biopython ---
-    n_labels = len(matrix_labels)
-    # Build lower-triangular distance matrix: for n labels, n rows, row i has i elements
-    strict_matrix = []
-    for i in range(n_labels):
-        row = []
-        for j in range(i):
-            seq1 = matrix_sequence_strings[i]
-            seq2 = matrix_sequence_strings[j]
-            matches = sum(aa1 == aa2 for aa1, aa2 in zip(seq1, seq2))
-            dist = 1.0 - (matches / current_seq_length)
-            row.append(float(dist))
-        strict_matrix.append(row)
-    distance_matrix_rows = strict_matrix
-    # Assert correct shape
-    assert len(distance_matrix_rows) == n_labels, (
-        f"Distance matrix rows {len(distance_matrix_rows)} != #labels {n_labels}"
-    )
-    for i, row in enumerate(distance_matrix_rows):
-        assert len(row) == i, f"Row {i} length {len(row)} != {i}"
-    # Ensure all labels are strings and all values are floats
-    matrix_labels = [str(l) for l in matrix_labels]
     # --- SIMPLIFIED PHYLOGENY USING BIOPYTHON WIKI EXAMPLE ---
     from Bio.Seq import Seq
     from Bio.SeqRecord import SeqRecord
@@ -600,46 +499,38 @@ async def phylo_tree_newick(
 
     try:
         alignment = MultipleSeqAlignment(
-            [SeqRecord(Seq(seq), id=label) for label, seq in final_sequences_for_matrix]
+            [SeqRecord(Seq(seq), id=label) for label, seq in labelled_sequences_for_tree]
         )
         if len(alignment) < 2:
-            print(f"Not enough sequences for tree. Returning dummy tree.")
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
-        calculator = DistanceCalculator("identity")
-        dm = calculator.get_distance(alignment)
-        constructor = DistanceTreeConstructor()
-        tree = constructor.nj(dm)
+
+        temp_input = os.path.join("instance", "temp", f"temp_input_{chain}.fasta")
+        temp_output = os.path.join("instance", "temp", f"temp_output_{chain}.fasta")
+        os.makedirs(os.path.dirname(temp_input), exist_ok=True)
+        
+        with open(temp_input, "w") as f:
+            for record in alignment:
+                f.write(f">{record.id}\n{record.seq}\n")
+
+        subprocess.run(["muscle", "-align", temp_input, "-output", temp_output], check=True)
+        aligned = AlignIO.read(temp_output, "fasta")
+        
+        os.remove(temp_input)
+        os.remove(temp_output)
+
+        calculator = DistanceCalculator("blosum62")
+        distance_matrix = calculator.get_distance(aligned)
+        constructor = DistanceTreeConstructor(calculator, method="nj")
+        tree = constructor.nj(distance_matrix)
+        
         handle = StringIO()
         Phylo.write(tree, handle, "newick")
         newick_tree_string = handle.getvalue().strip()
+        
         if not newick_tree_string or newick_tree_string == "();":
-            print(
-                f"DEBUG: Biopython produced trivial tree for chain '{chain}': '{newick_tree_string}'"
-            )
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
         return FastAPIResponse(content=newick_tree_string, media_type="text/plain")
-    except Exception as e:
-        print(f"ERROR constructing tree for chain '{chain}': {e}")
-        return FastAPIResponse(content="(A,B);", media_type="text/plain")
-
-    except ValueError as e:  # Catch errors from DistanceMatrix or tree construction (e.g., matrix format)
-        # Log the error along with the data that was passed to DistanceMatrix
-        # matrix_for_biopython should be defined here if the error is from DistanceMatrix itself.
-        # If the error was before its assignment (unlikely for this specific error), it falls back to distance_matrix_rows.
-        print(f"ERROR constructing DistanceMatrix/Tree for chain '{chain}': {e}.")
-        print(
-            f"ERROR constructing DistanceMatrix/Tree for chain '{chain}': {e}. Labels: {matrix_labels}, Matrix PASSED to Biopython: {matrix_logged}"
-        )
-        return FastAPIResponse(content="(A,B);", media_type="text/plain")
-    except Exception as e:  # Catch any other unexpected errors during tree construction
-        matrix_logged = (
-            matrix_for_biopython
-            if "matrix_for_biopython" in locals()
-            else distance_matrix_rows
-        )
-        print(
-            f"UNEXPECTED ERROR during tree construction for chain '{chain}': {e}. Labels: {matrix_labels}, Matrix: {matrix_logged}"
-        )
+    except Exception:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
 
@@ -660,10 +551,10 @@ async def download_fasta(
     """Download FASTA file for HC/LC gene pair."""
     # Get sequences
     if chain_type == "hc":
-        sequences = await get_hc_sequences(project_data, hc_gene)
+        sequences = await get_hc_sequences(project_data, hc_gene, lc_gene)
         filename = f"{project.project_name}_HC_{hc_gene}.fasta"
     else:
-        sequences = await get_lc_sequences(project_data, lc_gene)
+        sequences = await get_lc_sequences(project_data, hc_gene, lc_gene)
         filename = f"{project.project_name}_LC_{lc_gene}.fasta"
 
     # Compute consensus
