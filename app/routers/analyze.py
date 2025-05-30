@@ -10,7 +10,8 @@ import pandas as pd
 import os
 import json
 from Bio import Phylo
-from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
+from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
@@ -454,6 +455,11 @@ async def phylo_tree_newick(
     except (json.JSONDecodeError, FileNotFoundError):
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
+    # Check if we already have a cached Newick tree for this chain
+    cache_key = f"{chain}_newick"
+    if cache_key in cache_data:
+        return FastAPIResponse(content=cache_data[cache_key], media_type="text/plain")
+
     source_alignment_list_of_dicts = []
     label_map = {}
     if chain == "lc":
@@ -489,14 +495,6 @@ async def phylo_tree_newick(
     if len(sequence_lengths) != 1 or list(sequence_lengths)[0] == 0:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    # --- SIMPLIFIED PHYLOGENY USING BIOPYTHON WIKI EXAMPLE ---
-    from Bio.Seq import Seq
-    from Bio.SeqRecord import SeqRecord
-    from Bio.Align import MultipleSeqAlignment
-    from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
-    from io import StringIO
-    from Bio import Phylo
-
     try:
         alignment = MultipleSeqAlignment(
             [SeqRecord(Seq(seq), id=label) for label, seq in labelled_sequences_for_tree]
@@ -529,6 +527,12 @@ async def phylo_tree_newick(
         
         if not newick_tree_string or newick_tree_string == "();":
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
+
+        # Cache the Newick tree string
+        cache_data[cache_key] = newick_tree_string
+        with open(cache_file_path, "w") as f:
+            json.dump(cache_data, f)
+
         return FastAPIResponse(content=newick_tree_string, media_type="text/plain")
     except Exception:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
