@@ -78,10 +78,10 @@ bcr_fastAPI/
 2. Pull and run the container:
    ```bash
    # Pull the image
-   docker pull nkoranda/bcr-app:bcr-app
+   docker pull nkoranda/bcr-app:latest
 
    # Run the container
-   docker run -p 8000:8000 nkoranda/bcr-app:bcr-app
+   docker run -p 8000:8000 nkoranda/bcr-app:latest
    ```
 
 The application will be available at:
