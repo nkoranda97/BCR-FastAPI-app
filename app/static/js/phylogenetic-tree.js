@@ -24,12 +24,57 @@ class PhylogeneticTree {
 
     // Add toolbar for distance toggle and export
     const toolbar = document.createElement('div');
-    toolbar.style.margin = '8px';
+    toolbar.style.cssText = `
+      margin: 12px 8px;
+      padding: 12px;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
     toolbar.innerHTML = `
-        <label style="margin-right:12px;">
-          <input type="checkbox" id="${containerId}-show-distances"> Show Distances
+        <label style="
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          color: #374151;
+          font-weight: 500;
+          cursor: pointer;
+          user-select: none;
+        ">
+          <input type="checkbox" id="${containerId}-show-distances" style="
+            width: 16px;
+            height: 16px;
+            accent-color: #3b82f6;
+            cursor: pointer;
+          "> 
+          Show Distances
         </label>
-        <button id="${containerId}-export-selected">Export Selected</button>
+        <button id="${containerId}-export-selected" style="
+          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+          transition: all 0.2s ease;
+          font-family: inherit;
+        " 
+        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 2px 6px rgba(59, 130, 246, 0.4)'"
+        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(59, 130, 246, 0.3)'"
+        onmousedown="this.style.transform='translateY(1px)'; this.style.boxShadow='0 1px 2px rgba(59, 130, 246, 0.3)'"
+        onmouseup="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 2px 6px rgba(59, 130, 246, 0.4)'">
+          Export Selected
+        </button>
       `;
     this.container.parentNode.insertBefore(toolbar, this.container);
     document.getElementById(`${containerId}-show-distances`).addEventListener('change', e => {
