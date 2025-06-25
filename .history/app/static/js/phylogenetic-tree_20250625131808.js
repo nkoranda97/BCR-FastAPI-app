@@ -776,10 +776,10 @@ class PhylogeneticTree {
     const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
 
     const leaves = this.root.leaves();
-
+    
     // Use the same vertical spacing as the regular tree layout for consistency
     const vSep = this.opts.verticalNodeSeparation;
-
+    
     // Assign vertical positions to leaves with proper spacing
     leaves.forEach((leaf, i) => {
       leaf.x = this.opts.margin.top + (i * vSep);

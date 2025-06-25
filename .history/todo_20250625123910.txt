@@ -44,7 +44,7 @@
 - fix large trees becoming overcrowded
 - select sequences in tree viewer for easy exportation
 - better tree viewing, especially for large groups
-- show actual distances
+
 
 ## Aggregation
 - aggregation on other columns rather than just HC/LC

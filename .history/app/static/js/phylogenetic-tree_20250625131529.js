@@ -123,15 +123,13 @@ class PhylogeneticTree {
 
     this.#refreshDims();
 
-    let nodes, links;
+    const layout = this.tree(this.root);
+    const nodes = layout.descendants();
+    const links = layout.links();
+
+    // Apply distance-based positioning after tree layout
     if (this.opts.showDistances && this.maxDistance > 0) {
-      // Use custom phylogram layout for distance-based visualization
-      ({ nodes, links } = this.#createPhylogramLayout());
-    } else {
-      // Use standard d3.tree layout for cladogram
-      const layout = this.tree(this.root);
-      nodes = layout.descendants();
-      links = layout.links();
+      this.#applyDistancePositions(nodes);
     }
 
     /* -------- links ------------------------------------------------- */
@@ -615,19 +613,16 @@ class PhylogeneticTree {
       .attr('width', width)
       .attr('height', totalHeight);
 
-    // Only set tree size for cladogram mode (not phylogram)
-    if (!this.opts.showDistances || this.maxDistance === 0) {
-      // Compute horizontal layout for cladogram
-      const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
-      let layoutWidth = containerHorizontalSpace;
-      if (this.root) {
-        const maxDepth = this.root.height || 0;
-        layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
-      }
-      layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
-      // Apply tree size
-      this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
+    // Compute horizontal layout
+    const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
+    let layoutWidth = containerHorizontalSpace;
+    if (this.root) {
+      const maxDepth = this.root.height || 0;
+      layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
     }
+    layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
+    // Apply tree size
+    this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
   }
 
   #containerBox() {
@@ -772,26 +767,24 @@ class PhylogeneticTree {
   #createPhylogramLayout() {
     if (!this.root) return { nodes: [], links: [] };
 
-    const { width } = this.#containerBox();
+    const { width, height } = this.#containerBox();
     const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
+    const availableHeight = height - this.opts.margin.top - this.opts.margin.bottom;
 
     const leaves = this.root.leaves();
+    const leafSpacing = availableHeight / Math.max(1, leaves.length - 1);
 
-    // Use the same vertical spacing as the regular tree layout for consistency
-    const vSep = this.opts.verticalNodeSeparation;
-
-    // Assign vertical positions to leaves with proper spacing
+    // Assign vertical positions to leaves
     leaves.forEach((leaf, i) => {
-      leaf.x = this.opts.margin.top + (i * vSep);
+      leaf.x = this.opts.margin.top + (i * leafSpacing);
       leaf.y = this.opts.margin.left + (leaf.distanceFromRoot / this.maxDistance) * availableWidth;
     });
 
-    // Position internal nodes - traverse from leaves up to root
+    // Position internal nodes
     this.root.eachAfter(d => {
       if (d.children) {
-        // Position internal node at the average vertical position of its children
+        // Position at average of children's y positions
         d.x = d3.mean(d.children, child => child.x);
-        // Horizontal position based on distance from root
         d.y = this.opts.margin.left + (d.distanceFromRoot / this.maxDistance) * availableWidth;
       }
     });

@@ -615,19 +615,16 @@ class PhylogeneticTree {
       .attr('width', width)
       .attr('height', totalHeight);
 
-    // Only set tree size for cladogram mode (not phylogram)
-    if (!this.opts.showDistances || this.maxDistance === 0) {
-      // Compute horizontal layout for cladogram
-      const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
-      let layoutWidth = containerHorizontalSpace;
-      if (this.root) {
-        const maxDepth = this.root.height || 0;
-        layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
-      }
-      layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
-      // Apply tree size
-      this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
+    // Compute horizontal layout
+    const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
+    let layoutWidth = containerHorizontalSpace;
+    if (this.root) {
+      const maxDepth = this.root.height || 0;
+      layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
     }
+    layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
+    // Apply tree size
+    this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
   }
 
   #containerBox() {
@@ -776,10 +773,10 @@ class PhylogeneticTree {
     const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
 
     const leaves = this.root.leaves();
-
+    
     // Use the same vertical spacing as the regular tree layout for consistency
     const vSep = this.opts.verticalNodeSeparation;
-
+    
     // Assign vertical positions to leaves with proper spacing
     leaves.forEach((leaf, i) => {
       leaf.x = this.opts.margin.top + (i * vSep);

@@ -92,12 +92,6 @@ class PhylogeneticTree {
     /* --------- helpers ---------------------------------------------- */
     this.tree = d3.tree();
     this.diagonal = d3.linkHorizontal().x(d => d.y).y(d => d.x);
-    // Custom orthogonal (right-angled) path generator for phylograms
-    this.orthogonal = (d) => {
-      const source = d.source;
-      const target = d.target;
-      return `M${source.y},${source.x}H${target.y}V${target.x}`;
-    };
     this.root = null;
     this.id = 0;
     this.leafCount = 0;
@@ -123,16 +117,9 @@ class PhylogeneticTree {
 
     this.#refreshDims();
 
-    let nodes, links;
-    if (this.opts.showDistances && this.maxDistance > 0) {
-      // Use custom phylogram layout for distance-based visualization
-      ({ nodes, links } = this.#createPhylogramLayout());
-    } else {
-      // Use standard d3.tree layout for cladogram
-      const layout = this.tree(this.root);
-      nodes = layout.descendants();
-      links = layout.links();
-    }
+    const layout = this.tree(this.root);
+    const nodes = layout.descendants();
+    const links = layout.links();
 
     /* -------- links ------------------------------------------------- */
     const linkSel = this.viewport.selectAll('.link').data(links, d => d.target.__id);
@@ -146,7 +133,7 @@ class PhylogeneticTree {
       .merge(linkSel)
       .transition().duration(this.opts.duration)
       .attr('stroke', d => this.opts.colorScheme(d.source.depth))
-      .attr('d', this.opts.showDistances ? this.orthogonal : this.diagonal);
+      .attr('d', this.diagonal);
 
     /* -------- nodes ------------------------------------------------- */
     const nodeSel = this.viewport.selectAll('.node').data(nodes, d => d.__id);
@@ -249,16 +236,9 @@ class PhylogeneticTree {
     }
     this.#refreshDims();
 
-    let nodes, links;
-    if (this.opts.showDistances && this.maxDistance > 0) {
-      // Use custom phylogram layout
-      ({ nodes, links } = this.#createPhylogramLayout());
-    } else {
-      // Use standard d3.tree layout
-      const layout = this.tree(this.root);
-      nodes = layout.descendants();
-      links = layout.links();
-    }
+    const layout = this.tree(this.root);
+    const nodes = layout.descendants();
+    const links = layout.links();
 
     // Clicked node's current position (will be the source/target for animations)
     const sourcePoint = { x: d.x, y: d.y, depth: d.depth };
@@ -281,7 +261,7 @@ class PhylogeneticTree {
       .merge(linkSel)
       .transition().duration(this.opts.duration)
       .attr('stroke', l_d => this.opts.colorScheme(l_d.source.depth))
-      .attr('d', this.opts.showDistances ? this.orthogonal : this.diagonal)
+      .attr('d', this.diagonal)
       .attr('stroke-opacity', 0.6);
 
 
@@ -615,19 +595,16 @@ class PhylogeneticTree {
       .attr('width', width)
       .attr('height', totalHeight);
 
-    // Only set tree size for cladogram mode (not phylogram)
-    if (!this.opts.showDistances || this.maxDistance === 0) {
-      // Compute horizontal layout for cladogram
-      const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
-      let layoutWidth = containerHorizontalSpace;
-      if (this.root) {
-        const maxDepth = this.root.height || 0;
-        layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
-      }
-      layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
-      // Apply tree size
-      this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
+    // Compute horizontal layout
+    const containerHorizontalSpace = width - this.opts.margin.left - this.opts.margin.right;
+    let layoutWidth = containerHorizontalSpace;
+    if (this.root) {
+      const maxDepth = this.root.height || 0;
+      layoutWidth = Math.max(containerHorizontalSpace, maxDepth * this.opts.levelSeparation + this.opts.estimatedLeafLabelWidth + this.opts.nodeRadius * 2 + this.opts.margin.right);
     }
+    layoutWidth = Math.max(layoutWidth, this.opts.levelSeparation * 2);
+    // Apply tree size
+    this.tree.size([Math.max(1, layoutHeight), Math.max(1, layoutWidth)]);
   }
 
   #containerBox() {
@@ -754,52 +731,16 @@ class PhylogeneticTree {
 
     // Find maximum distance for scaling
     this.maxDistance = Math.max(...this.root.descendants().map(d => d.distanceFromRoot));
-  }
 
-  // Apply distance-based horizontal positioning to nodes
-  #applyDistancePositions(nodes) {
-    if (!this.maxDistance || this.maxDistance === 0) return;
+    // Second pass: set horizontal positions based on distance
+    if (this.opts.showDistances && this.maxDistance > 0) {
+      const { width } = this.#containerBox();
+      const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
 
-    const { width } = this.#containerBox();
-    const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
-
-    nodes.forEach(d => {
-      d.y = this.opts.margin.left + (d.distanceFromRoot / this.maxDistance) * availableWidth;
-    });
-  }
-
-  // Create a phylogram layout with distance-based positioning
-  #createPhylogramLayout() {
-    if (!this.root) return { nodes: [], links: [] };
-
-    const { width } = this.#containerBox();
-    const availableWidth = width - this.opts.margin.left - this.opts.margin.right - this.opts.estimatedLeafLabelWidth;
-
-    const leaves = this.root.leaves();
-
-    // Use the same vertical spacing as the regular tree layout for consistency
-    const vSep = this.opts.verticalNodeSeparation;
-
-    // Assign vertical positions to leaves with proper spacing
-    leaves.forEach((leaf, i) => {
-      leaf.x = this.opts.margin.top + (i * vSep);
-      leaf.y = this.opts.margin.left + (leaf.distanceFromRoot / this.maxDistance) * availableWidth;
-    });
-
-    // Position internal nodes - traverse from leaves up to root
-    this.root.eachAfter(d => {
-      if (d.children) {
-        // Position internal node at the average vertical position of its children
-        d.x = d3.mean(d.children, child => child.x);
-        // Horizontal position based on distance from root
+      this.root.each(d => {
         d.y = this.opts.margin.left + (d.distanceFromRoot / this.maxDistance) * availableWidth;
-      }
-    });
-
-    const nodes = this.root.descendants();
-    const links = this.root.links();
-
-    return { nodes, links };
+      });
+    }
   }
 
   // Export names of selected leaf nodes as text file
