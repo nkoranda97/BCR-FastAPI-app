@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Request, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Request, Form, HTTPException
+from fastapi import status as http_status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi import Response as FastAPIResponse
 from fastapi.templating import Jinja2Templates
@@ -25,7 +26,6 @@ from ..database import get_db, Project
 
 from ..services.ddl import (
     load_project,
-    merge_data,
     lazy_classifier,
     compute_alignment_and_consensus,
     best_translation,
@@ -85,8 +85,8 @@ async def graphs(
     project_data: tuple = Depends(get_project_data),
 ):
     """Generate graphs for a project."""
-    vdj, adata = project_data
-    df = vdj.metadata
+    vdj, adata, merged_df = project_data
+    df = merged_df  # Use the pre-merged dataset instead of vdj.metadata
 
     # Prepare data for Chart.js
     def prepare_chart_data(column):
@@ -129,8 +129,8 @@ async def lc_aggregation(
     project_data: tuple = Depends(get_project_data),
 ):
     """Return LC gene aggregation for a selected HC gene."""
-    vdj, adata = project_data
-    df = vdj.metadata
+    vdj, adata, merged_df = project_data
+    df = merged_df  # Use the pre-merged dataset
     # Filter for the selected HC gene (v_call_VDJ)
     filtered = df[df["v_call_VDJ"] == hc_gene]
     # Count LC genes (v_call_VJ)
@@ -180,10 +180,10 @@ async def hc_lc_alignment_data(
                 return JSONResponse(content=result)
 
         # Otherwise, compute and cache
-        vdj, _ = project_data
-        merged = merge_data(vdj)
-        filtered = merged[
-            (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+        vdj, _, merged_df = project_data
+        # Use the pre-merged dataset instead of calling merge_data
+        filtered = merged_df[
+            (merged_df["v_call_VDJ"] == hc_gene) & (merged_df["v_call_VJ"] == lc_gene)
         ].copy()
 
         for col in ("IGH", "IGK", "IGL"):
@@ -191,7 +191,7 @@ async def hc_lc_alignment_data(
 
         hc_table = (
             filtered[filtered["locus_VDJ"] == "IGH"][
-                ["IGH", "sequence_id", "isotype", "clone_id"]
+                ["IGH", "sequence_id", "isotype", "clone_id", "display_name"]
             ]
             .drop_duplicates()
             .to_dict(orient="records")
@@ -205,7 +205,7 @@ async def hc_lc_alignment_data(
             lc_col = None
 
         lc_table = (
-            filtered[[lc_col, "sequence_id", "isotype", "clone_id"]]
+            filtered[[lc_col, "sequence_id", "isotype", "clone_id", "display_name"]]
             .drop_duplicates()
             .to_dict(orient="records")
             if lc_col
@@ -239,8 +239,24 @@ async def hc_lc_alignment_data(
             and row[lc_col].strip()
         ]
 
-        hc_label_map = {orig_id: f"HC-{i + 1}" for i, orig_id in enumerate(hc_ids)}
-        lc_label_map = {orig_id: f"LC-{i + 1}" for i, orig_id in enumerate(lc_ids)}
+        # Create meaningful label maps using display names with chain suffixes
+        def create_label_map(table_rows, ids, chain_suffix):
+            label_map = {}
+            for i, orig_id in enumerate(ids):
+                # Find the corresponding row to get the display name
+                matching_row = next(
+                    (row for row in table_rows if row["sequence_id"] == orig_id), None
+                )
+                if matching_row and "display_name" in matching_row:
+                    label = f"{matching_row['display_name']}-{chain_suffix}"
+                else:
+                    # Fallback to sequence_id if display_name not found
+                    label = f"{orig_id}-{chain_suffix}"
+                label_map[orig_id] = label
+            return label_map
+
+        hc_label_map = create_label_map(hc_table, hc_ids, "HC")
+        lc_label_map = create_label_map(lc_table, lc_ids, "LC")
 
         hc_alignment, hc_consensus, hc_match_matrix = compute_alignment_and_consensus(
             hc_seqs, hc_ids
@@ -356,8 +372,8 @@ async def gene_explorer(
     project_data: tuple = Depends(get_project_data),
 ):
     """Gene Explorer: List V genes and their counts."""
-    vdj, adata = project_data
-    df = vdj.metadata
+    vdj, adata, merged_df = project_data
+    df = merged_df  # Use the pre-merged dataset
     v_counts = df["v_call_VDJ"].value_counts().reset_index()
     v_counts.columns = ["gene", "count"]
     v_genes = v_counts.to_dict(orient="records")
@@ -375,45 +391,77 @@ async def gene_explorer(
 
 async def get_hc_sequences(project_data: tuple, hc_gene: str, lc_gene: str):
     """Get heavy chain sequences for a project and gene pair."""
-    vdj, _ = project_data
-    merged = merge_data(vdj)
+    vdj, _, merged_df = project_data
 
     # Filter for the HC/LC gene pair and translate
-    filtered = merged[
-        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+    filtered = merged_df[
+        (merged_df["v_call_VDJ"] == hc_gene) & (merged_df["v_call_VJ"] == lc_gene)
     ].copy()
 
     filtered["IGH"] = filtered["IGH"].apply(best_translation)
 
-    # Convert to list of dicts, using the same labeling scheme as alignment data
+    # Convert to list of dicts, using display names
     sequences = []
-    for i, (_, row) in enumerate(filtered.drop_duplicates(subset=["sequence_id"]).iterrows()):
+    for i, (_, row) in enumerate(
+        filtered.drop_duplicates(subset=["sequence_id"]).iterrows()
+    ):
         if row["IGH"] and isinstance(row["IGH"], str) and row["IGH"].strip():
-            sequences.append({"name": f"HC-{i + 1}", "seq": row["IGH"]})
+            # Use the display_name from the merged dataset
+            display_name = row.get("display_name", f"HC-{i + 1}")
+            sequence_id = row["sequence_id"]
+            clone_id = row.get("clone_id", "Unknown")
+            isotype = row.get("isotype", "Unknown")
+
+            sequences.append(
+                {
+                    "name": display_name,
+                    "seq": row["IGH"],
+                    "sequence_id": sequence_id,
+                    "clone_id": clone_id,
+                    "isotype": isotype,
+                    "display_name": display_name,
+                }
+            )
 
     return sequences
 
 
 async def get_lc_sequences(project_data: tuple, hc_gene: str, lc_gene: str):
     """Get light chain sequences for a project and gene pair."""
-    vdj, _ = project_data
-    merged = merge_data(vdj)
+    vdj, _, merged_df = project_data
 
     # Determine LC column based on gene prefix
     lc_col = "IGK" if lc_gene.startswith("IGK") else "IGL"
 
     # Filter for the HC/LC gene pair and translate
-    filtered = merged[
-        (merged["v_call_VDJ"] == hc_gene) & (merged["v_call_VJ"] == lc_gene)
+    filtered = merged_df[
+        (merged_df["v_call_VDJ"] == hc_gene) & (merged_df["v_call_VJ"] == lc_gene)
     ].copy()
 
     filtered[lc_col] = filtered[lc_col].apply(best_translation)
 
-    # Convert to list of dicts, using the same labeling scheme as alignment data
+    # Convert to list of dicts, using display names
     sequences = []
-    for i, (_, row) in enumerate(filtered.drop_duplicates(subset=["sequence_id"]).iterrows()):
+    for i, (_, row) in enumerate(
+        filtered.drop_duplicates(subset=["sequence_id"]).iterrows()
+    ):
         if row[lc_col] and isinstance(row[lc_col], str) and row[lc_col].strip():
-            sequences.append({"name": f"LC-{i + 1}", "seq": row[lc_col]})
+            # Use the display_name from the merged dataset
+            display_name = row.get("display_name", f"LC-{i + 1}")
+            sequence_id = row["sequence_id"]
+            clone_id = row.get("clone_id", "Unknown")
+            isotype = row.get("isotype", "Unknown")
+
+            sequences.append(
+                {
+                    "name": display_name,
+                    "seq": row[lc_col],
+                    "sequence_id": sequence_id,
+                    "clone_id": clone_id,
+                    "isotype": isotype,
+                    "display_name": display_name,
+                }
+            )
 
     return sequences
 
@@ -437,7 +485,9 @@ async def phylo_tree_newick(
 
     if status["status"] == "not_started":
         try:
-            await hc_lc_alignment_data(project_id, hc_gene, lc_gene, project, project_data)
+            await hc_lc_alignment_data(
+                project_id, hc_gene, lc_gene, project, project_data
+            )
             status = alignment_status.get(key, {"status": "not_started"})
         except Exception:
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
@@ -446,8 +496,12 @@ async def phylo_tree_newick(
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
     project_name = project.project_name
-    cache_dir = os.path.join("instance", "uploads", project_name, project_name, "alignments")
-    cache_file_path = os.path.join(cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json")
+    cache_dir = os.path.join(
+        "instance", "uploads", project_name, project_name, "alignments"
+    )
+    cache_file_path = os.path.join(
+        cache_dir, f"alignment_{safe_gene(hc_gene)}_{safe_gene(lc_gene)}.json"
+    )
 
     try:
         with open(cache_file_path, "r") as f:
@@ -479,8 +533,12 @@ async def phylo_tree_newick(
 
         name, sequence = item_list[0], item_list[1]
 
-        if (isinstance(name, str) and name not in ("Germline", "Consensus", "Region") 
-            and isinstance(sequence, str) and sequence):
+        if (
+            isinstance(name, str)
+            and name not in ("Germline", "Consensus", "Region")
+            and isinstance(sequence, str)
+            and sequence
+        ):
             valid_initial_sequences.append((name, sequence))
 
     labelled_sequences_for_tree = []
@@ -491,13 +549,18 @@ async def phylo_tree_newick(
     if len(labelled_sequences_for_tree) < 2:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
-    sequence_lengths = set(len(seq_str) for label, seq_str in labelled_sequences_for_tree)
+    sequence_lengths = set(
+        len(seq_str) for label, seq_str in labelled_sequences_for_tree
+    )
     if len(sequence_lengths) != 1 or list(sequence_lengths)[0] == 0:
         return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
     try:
         alignment = MultipleSeqAlignment(
-            [SeqRecord(Seq(seq), id=label) for label, seq in labelled_sequences_for_tree]
+            [
+                SeqRecord(Seq(seq), id=label)
+                for label, seq in labelled_sequences_for_tree
+            ]
         )
         if len(alignment) < 2:
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
@@ -505,14 +568,16 @@ async def phylo_tree_newick(
         temp_input = os.path.join("instance", "temp", f"temp_input_{chain}.fasta")
         temp_output = os.path.join("instance", "temp", f"temp_output_{chain}.fasta")
         os.makedirs(os.path.dirname(temp_input), exist_ok=True)
-        
+
         with open(temp_input, "w") as f:
             for record in alignment:
                 f.write(f">{record.id}\n{record.seq}\n")
 
-        subprocess.run(["muscle", "-align", temp_input, "-output", temp_output], check=True)
+        subprocess.run(
+            ["muscle", "-align", temp_input, "-output", temp_output], check=True
+        )
         aligned = AlignIO.read(temp_output, "fasta")
-        
+
         os.remove(temp_input)
         os.remove(temp_output)
 
@@ -520,11 +585,11 @@ async def phylo_tree_newick(
         distance_matrix = calculator.get_distance(aligned)
         constructor = DistanceTreeConstructor(calculator, method="nj")
         tree = constructor.nj(distance_matrix)
-        
+
         handle = StringIO()
         Phylo.write(tree, handle, "newick")
         newick_tree_string = handle.getvalue().strip()
-        
+
         if not newick_tree_string or newick_tree_string == "();":
             return FastAPIResponse(content="(A,B);", media_type="text/plain")
 
@@ -612,9 +677,8 @@ async def download_data(
     project_data: tuple = Depends(get_project_data),
 ):
     """Download data page for a project."""
-    vdj, _ = project_data
-    merged = merge_data(vdj)
-    columns = merged.columns.tolist()
+    vdj, _, merged_df = project_data
+    columns = merged_df.columns.tolist()  # Use the pre-merged dataset
 
     return templates.TemplateResponse(
         "analyze/download_data.html",
@@ -638,14 +702,13 @@ async def download_csv(
     project_data: tuple = Depends(get_project_data),
 ):
     """Download selected columns as CSV."""
-    vdj, _ = project_data
-    merged = merge_data(vdj)
+    vdj, _, merged_df = project_data  # Use the pre-merged dataset
 
     # Parse selected columns
     selected_columns = columns.split(",")
 
     # Filter data to selected columns
-    filtered_data = merged[selected_columns]
+    filtered_data = merged_df[selected_columns]
 
     # Convert to CSV
     csv_data = filtered_data.to_csv(index=False)
@@ -694,12 +757,17 @@ async def distance_matrix(
         if status["status"] == "computing":
             return JSONResponse(
                 status_code=202,
-                content={"status": "computing", "message": "Alignment computation in progress"},
+                content={
+                    "status": "computing",
+                    "message": "Alignment computation in progress",
+                },
             )
         elif status["status"] == "error":
             return JSONResponse(
                 status_code=500,
-                content={"error": f"Error in alignment computation: {status.get('message', 'Unknown error')}"},
+                content={
+                    "error": f"Error in alignment computation: {status.get('message', 'Unknown error')}"
+                },
             )
 
         # Load cached alignment data
@@ -749,14 +817,16 @@ async def distance_matrix(
         # Calculate distance matrix
         n_seqs = len(sequences)
         distances = np.zeros((n_seqs, n_seqs))
-        
+
         for i in range(n_seqs):
             for j in range(i + 1, n_seqs):
                 # Calculate percentage of mismatches
                 seq1 = sequences[i][1]
                 seq2 = sequences[j][1]
-                mismatches = sum(1 for a, b in zip(seq1, seq2) if a != b and a != '-' and b != '-')
-                total = sum(1 for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+                mismatches = sum(
+                    1 for a, b in zip(seq1, seq2) if a != b and a != "-" and b != "-"
+                )
+                total = sum(1 for a, b in zip(seq1, seq2) if a != "-" and b != "-")
                 distance = (mismatches / total) * 100 if total > 0 else 0
                 distances[i, j] = distance
                 distances[j, i] = distance
@@ -765,12 +835,7 @@ async def distance_matrix(
         labels = [seq[0] for seq in sequences]  # Use the mapped labels
         matrix_data = distances.tolist()
 
-        return JSONResponse(
-            content={
-                "labels": labels,
-                "matrix": matrix_data
-            }
-        )
+        return JSONResponse(content={"labels": labels, "matrix": matrix_data})
 
     except Exception as e:
         return JSONResponse(

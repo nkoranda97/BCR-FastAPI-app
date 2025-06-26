@@ -14,7 +14,19 @@
   pointer-events: none;
   z-index: 20;
 }
+
 .msa-aa.non-matching {
   background-color: #fef08a;
   border-radius: 2px;
-} 
+}
+
+/* Ensure sequence names display on a single line */
+.msa-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 8rem;
+  /* Ensure minimum width (w-32 = 8rem) */
+  max-width: 16rem;
+  /* Allow more space for longer names */
+}

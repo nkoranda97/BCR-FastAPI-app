@@ -132,6 +132,13 @@ async def preprocess(
             ddl.tl.generate_network(vdj)
             ddl.tl.clone_size(vdj)
 
+            # Create merged dataset with consistent naming during preprocessing
+            merged_df = create_merged_dataset(
+                vdj, os.path.basename(upload_folder.rstrip("/"))
+            )
+            merged_path = os.path.join(upload_folder, "merged_data.pkl")
+            merged_df.to_pickle(merged_path)
+
             adata_path = os.path.join(upload_folder, "processed_adata.h5ad")
             vdj_path = os.path.join(upload_folder, "processed_vdj.h5ddl")
 
@@ -187,6 +194,13 @@ async def preprocess(
             ddl.tl.generate_network(vdj)
             ddl.tl.clone_size(vdj)
 
+            # Create merged dataset with consistent naming during preprocessing
+            merged_df = create_merged_dataset(
+                vdj, os.path.basename(upload_folder.rstrip("/"))
+            )
+            merged_path = os.path.join(upload_folder, "merged_data.pkl")
+            merged_df.to_pickle(merged_path)
+
             vdj_path = os.path.join(upload_folder, "processed_vdj.h5ddl")
             try:
                 vdj.write(vdj_path)
@@ -202,19 +216,25 @@ async def preprocess(
             )
 
 
-async def load_project(project: dict) -> Tuple[ddl.Dandelion, Optional[sc.AnnData]]:
+async def load_project(
+    project: dict,
+) -> Tuple[ddl.Dandelion, Optional[sc.AnnData], pd.DataFrame]:
     """
-    Load a project's data
+    Load a project's data including the pre-merged dataset
 
     Args:
         project: Dictionary containing project information
 
     Returns:
-        Tuple of (vdj data, adata) where adata may be None
+        Tuple of (vdj data, adata, merged_df) where adata may be None
     """
     try:
         vdj_path = project["vdj_path"]
         adata_path = project["adata_path"]
+
+        # Construct the path to the merged data file
+        project_dir = os.path.dirname(vdj_path)
+        merged_path = os.path.join(project_dir, "merged_data.pkl")
 
         if vdj_path.endswith(".h5ddl"):
             vdj = ddl.read_h5ddl(vdj_path)
@@ -223,11 +243,21 @@ async def load_project(project: dict) -> Tuple[ddl.Dandelion, Optional[sc.AnnDat
         else:
             raise HTTPException(status_code=400, detail="Invalid VDJ file format")
 
+        # Load merged dataset if it exists, otherwise create it
+        if os.path.exists(merged_path):
+            merged_df = pd.read_pickle(merged_path)
+        else:
+            # Fallback: create merged dataset on-the-fly
+            project_name = project.get("project_name", "Unknown")
+            merged_df = create_merged_dataset(vdj, project_name)
+            # Save it for future use
+            merged_df.to_pickle(merged_path)
+
         if adata_path != "NULL":
             adata = sc.read(adata_path)
-            return vdj, adata
+            return vdj, adata, merged_df
         else:
-            return vdj, None
+            return vdj, None, merged_df
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading project: {str(e)}")
@@ -486,3 +516,41 @@ def best_translation(nt) -> str:
         return max((len(seg) for seg in aa.split("*")), default=0)
 
     return max(frames, key=longest_fragment)
+
+
+def create_merged_dataset(vdj: ddl.Dandelion, project_name: str) -> pd.DataFrame:
+    """
+    Create a merged dataset from VDJ data with consistent naming during preprocessing.
+
+    Args:
+        vdj: Dandelion object containing VDJ data
+        project_name: Name of the project for creating display names
+
+    Returns:
+        Merged DataFrame with display names and all necessary metadata
+    """
+    try:
+        # Use the existing merge_data function to get the base merged data
+        merged = merge_data(vdj)
+
+        # Add a display_name column with project-name-number format
+        merged = merged.reset_index(drop=True)
+        merged["display_name"] = [
+            f"{project_name}-{i + 1:03d}" for i in range(len(merged))
+        ]
+
+        # Add the original sequence_id as a separate column for reference
+        if "sequence_id" not in merged.columns:
+            # If sequence_id is not already a column, try to get it from the index or other sources
+            if hasattr(merged.index, "name") and merged.index.name == "sequence_id":
+                merged["sequence_id"] = merged.index
+            else:
+                # Fallback: create sequence IDs from row numbers if not available
+                merged["sequence_id"] = [f"seq_{i + 1}" for i in range(len(merged))]
+
+        return merged
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error creating merged dataset: {str(e)}"
+        )

@@ -20,7 +20,11 @@ async def get_project(project_id: int, db: Session = Depends(get_db)) -> Project
 async def get_project_data(project: Project = Depends(get_project)) -> tuple:
     """Dependency to load project data."""
     try:
-        project_dict = {"vdj_path": project.vdj_path, "adata_path": project.adata_path}
+        project_dict = {
+            "vdj_path": project.vdj_path,
+            "adata_path": project.adata_path,
+            "project_name": project.project_name,
+        }
         return await load_project(project_dict)
     except Exception as e:
         raise HTTPException(
